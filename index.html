@@ -538,8 +538,8 @@ function rPag(){
 function rDocs(){
   const sel=document.getElementById('doc-cli');const cv=sel.value;
   sel.innerHTML='<option value="">— Seleccionar cliente —</option>'+[...DATA.clientes].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
-  if(cv)sel.value=cv;
-  if(!cv){document.getElementById('paso2').style.display='none';document.getElementById('paso3').style.display='none';}
+  if(cv){sel.value=cv;onDocCliChange();}
+  else{document.getElementById('paso2').style.display='none';document.getElementById('paso3').style.display='none';}
   rEnvios();
 }
 function rEnvios(){
