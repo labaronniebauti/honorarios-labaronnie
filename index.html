@@ -406,29 +406,27 @@ function deuda(cli){
 // Meses adeudados — aplica pagos solo a meses (en orden), los extras van aparte
 function mesesAd(cli){
   const ms=getMeses(cli);
-  let pr=DATA.pagos.filter(p=>sid(p.cid,cli.id)).reduce((a,p)=>a+p.imp,0);
-  let pend=[];
-  for(const m of ms){
-    const t=tarifa(cli,m);
-    if(pr>=t){pr-=t;}
-    else{
-      const restante=t-pr;
-      pend.push({mes:m,tarifa:t,restante:restante,parcial:pr>0&&pr<t});
-      pr=0;
+  const extrasTotal=DATA.extras.filter(e=>sid(e.cid,cli.id)).reduce((a,e)=>a+e.imp,0);
+  let paid=DATA.pagos.filter(p=>sid(p.cid,cli.id)).reduce((a,p)=>a+p.imp,0);
+  let result=[];let owed=false;
+  for(let i=0;i<ms.length;i++){
+    const m=ms[i],t=tarifa(cli,m),isLast=(i===ms.length-1);
+    const charge=isLast?t+extrasTotal:t;
+    if(!owed){
+      if(paid>=charge){paid-=charge;continue;}
+      owed=true;
+      result.push({mes:m,tarifa:t,restante:charge-paid,parcial:paid>0,hasExtras:isLast&&extrasTotal>0});
+      paid=0;
+    } else {
+      result.push({mes:m,tarifa:t,restante:isLast?t+extrasTotal:t,parcial:false,hasExtras:isLast&&extrasTotal>0});
     }
   }
-  return pend;
+  return result;
 }
+// Extras ya incluidos en el último mes — siempre 0 como deuda separada
+function extrasAd(cli){return DATA.extras.filter(e=>sid(e.cid,cli.id));}
+function extrasRestante(cli){return 0;}
 
-// Extras adeudados — siempre se deben, no dependen de fecha
-function extrasAd(cli){
-  return DATA.extras.filter(e=>sid(e.cid,cli.id));
-}
-// Cuánto de los extras queda sin pagar — usa el valor guardado en DB
-function extrasRestante(cli){
-  const totalExtras=DATA.extras.filter(e=>sid(e.cid,cli.id)).reduce((a,e)=>a+e.imp,0);
-  return Math.max(0,totalExtras-(cli.extrasPagados||0));
-}
 
 function ultimoPago(cli){return[...DATA.pagos.filter(p=>sid(p.cid,cli.id))].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0]||null;}
 function getGrupo(cid){return DATA.grupos.find(g=>g.miembros.map(String).includes(String(cid)));}
@@ -588,18 +586,28 @@ function buildDocData(ids,desde,hasta){
   const clientes=ids.map(id=>DATA.clientes.find(c=>c.id===id)).filter(Boolean);
   let secciones=[],totalRango=0;
   for(const cli of clientes){
-    const msTodos=getMeses(cli).filter(m=>m>=desde&&m<=hasta);
-    let pr=DATA.pagos.filter(p=>sid(p.cid,cli.id)).reduce((a,p)=>a+p.imp,0);
-    // descontar meses previos al rango
-    for(const m of getMeses(cli).filter(m=>m<desde)){const t=tarifa(cli,m);if(pr>=t)pr-=t;else pr=0;}
-    let pend=[];
-    for(const m of msTodos){const t=tarifa(cli,m);if(pr>=t){pr-=t;}else{pend.push({mes:m,tarifa:t,restante:t-pr,parcial:pr>0&&pr<t});pr=0;}}
+    const ms=getMeses(cli).filter(m=>m>=desde&&m<=hasta);
+    const extrasTotal=DATA.extras.filter(e=>sid(e.cid,cli.id)).reduce((a,e)=>a+e.imp,0);
+    let paid=DATA.pagos.filter(p=>sid(p.cid,cli.id)).reduce((a,p)=>a+p.imp,0);
+    for(const m of getMeses(cli).filter(m=>m<desde)){const t=tarifa(cli,m);if(paid>=t)paid-=t;else paid=0;}
+    let pend=[];let owed=false;
+    for(let i=0;i<ms.length;i++){
+      const m=ms[i],t=tarifa(cli,m),isLast=(i===ms.length-1);
+      const charge=isLast?t+extrasTotal:t;
+      if(!owed){
+        if(paid>=charge){paid-=charge;continue;}
+        owed=true;
+        pend.push({mes:m,tarifa:t,restante:charge-paid,parcial:paid>0,hasExtras:isLast&&extrasTotal>0});
+        paid=0;
+      } else {
+        pend.push({mes:m,tarifa:t,restante:isLast?t+extrasTotal:t,parcial:false,hasExtras:isLast&&extrasTotal>0});
+      }
+    }
     const extras=DATA.extras.filter(e=>sid(e.cid,cli.id));
-    const er=extrasRestante(cli); // lo que realmente se debe de extras
-    const subtotal=pend.reduce((a,m)=>a+m.restante,0)+er;
+    const subtotal=pend.reduce((a,m)=>a+m.restante,0);
     const ultPago=ultimoPago(cli);
     totalRango+=subtotal;
-    secciones.push({cli,pend,extras,er,subtotal,ultPago});
+    secciones.push({cli,pend,extras,er:0,subtotal,ultPago});
   }
   return{secciones,totalRango};
 }
@@ -872,19 +880,19 @@ function openDet(id){
   rDetRes(c);rDetMes(c);rDetPag(c);rDetConc(c);om('m-det');
 }
 function rDetRes(c){
-  const d=deuda(c),ma=mesesAd(c),ea=extrasAd(c),er=extrasRestante(c),tc=DATA.pagos.filter(p=>sid(p.cid,c.id)).reduce((a,p)=>a+p.imp,0),mt=getMeses(c).length;
+  const d=deuda(c),ma=mesesAd(c),tc=DATA.pagos.filter(p=>sid(p.cid,c.id)).reduce((a,p)=>a+p.imp,0),mt=getMeses(c).length;
+  const ea=extrasAd(c),te=ea.reduce((a,e)=>a+e.imp,0);
   let resumen=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:${d<=0?'10px':'0'};">
-    <div class="met"><div class="met-l">Deuda total</div><div class="met-v ${d>0?'r':'g'}">${d<=0?'$ 0':''+fmt(Math.max(0,d))}</div></div>
+    <div class="met"><div class="met-l">Deuda total</div><div class="met-v ${d>0?'r':'g'}">${d<=0?'$ 0':fmt(d)}</div></div>
     <div class="met"><div class="met-l">Meses adeudados</div><div class="met-v ${ma.length>0?'r':''}">${ma.length} de ${mt}</div></div>
-    <div class="met"><div class="met-l">Extras pendientes</div><div class="met-v ${er>0?'r':'g'}">${er>0?fmt(er):'$ 0'}</div></div>
     <div class="met"><div class="met-l">Total cobrado</div><div class="met-v g">${fmt(tc)}</div></div>
+    <div class="met"><div class="met-l">Extras cargados</div><div class="met-v" style="font-size:15px;">${ea.length?ea.length+' ('+fmt(te)+')':'Ninguno'}</div></div>
   </div>`;
-  // Banner especial cuando todo está pagado
-  if(d<=0&&er===0){
+  if(d<=0){
     resumen+=`<div style="background:#eaf5ef;border:1.5px solid #1a6b3a;border-radius:10px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
       <div>
         <div style="font-size:14px;font-weight:700;color:#1a6b3a;"><i class="ti ti-circle-check"></i> Cliente al día — todo pagado</div>
-        <div style="font-size:12px;color:#2a8a4a;margin-top:3px;">Para cobrar nuevos meses, extendé el período de facturación</div>
+        <div style="font-size:12px;color:#2a8a4a;margin-top:3px;">Para facturar nuevos meses, extendé el período</div>
       </div>
       <button class="btn bp" style="background:#1a6b3a;border-color:#1a6b3a;white-space:nowrap;" onclick="cm('m-det');openExtender('${c.id}')">
         <i class="ti ti-calendar-plus"></i> Agregar próximos meses
@@ -897,27 +905,28 @@ function rDetMes(c){
   const msTodos=getMeses(c),ma=mesesAd(c),adSet=new Set(ma.map(m=>m.mes));
   const parSet=new Map(ma.filter(m=>m.parcial).map(m=>[m.mes,m.restante]));
   const ea=extrasAd(c);
-  const er=extrasRestante(c);
   const totalExt=ea.reduce((a,e)=>a+e.imp,0);
 
   let html=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
     <span style="font-size:13px;color:#888;">${msTodos.length} meses generados</span>
     <button class="btn bsm bp" onclick="openExtraFor('${c.id}')"><i class="ti ti-plus"></i> Agregar extra</button>
   </div>
-  <div class="tw"><table><thead><tr><th>Período</th><th>Honorario</th><th>Estado</th><th>Importe adeudado</th></tr></thead><tbody>`;
+  <div class="tw"><table><thead><tr><th>Período</th><th>Honorario base</th><th>Estado</th><th>Importe adeudado</th></tr></thead><tbody>`;
   for(const mes of [...msTodos].reverse()){
     const t=tarifa(c,mes);const ad=adSet.has(mes);const parcial=parSet.has(mes);
+    const mesData=ma.find(m=>m.mes===mes);
     const badge=ad?(parcial?'<span class="badge bp2">Pago parcial</span>':'<span class="badge bd">Adeudado</span>'):'<span class="badge bs">Pagado</span>';
-    const imp=ad?(parcial?fmt(parSet.get(mes)):fmt(t)):'—';
-    html+=`<tr><td style="font-weight:600">${mL(mes)}</td><td>${fmt(t)}</td><td>${badge}</td><td style="font-weight:700;color:${ad?'var(--red)':'var(--green)'}">${imp}</td></tr>`;
+    const imp=ad?(mesData?fmt(mesData.restante):fmt(t)):'—';
+    const extrasNote=ad&&mesData&&mesData.hasExtras?` <span style="font-size:11px;color:var(--amb);">(incluye extras: ${fmt(totalExt)})</span>`:'';
+    html+=`<tr><td style="font-weight:600">${mL(mes)}${extrasNote}</td><td>${fmt(t)}</td><td>${badge}</td><td style="font-weight:700;color:${ad?'var(--red)':'var(--green)'}">${imp}</td></tr>`;
   }
   html+=`</tbody></table></div>`;
 
   if(ea.length){
     html+=`<div class="extras-section" style="margin-top:1rem;">
       <div class="extras-section-title">
-        <span><i class="ti ti-star" style="font-size:13px;"></i> Extras (${ea.length})</span>
-        <span>${fmt(er)} adeudado</span>
+        <span><i class="ti ti-star" style="font-size:13px;"></i> Extras registrados (${ea.length}) — incluidos en la liquidación</span>
+        <span>${fmt(totalExt)}</span>
       </div>`;
     for(const ex of ea){
       html+=`<div class="extra-row"><span style="color:#555;font-size:13px;">${ex.desc}</span>
@@ -925,15 +934,9 @@ function rDetMes(c){
         <button class="bdel" style="padding:2px 7px;font-size:11px;" onclick="delExtra('${ex.id}','${c.id}')"><i class="ti ti-trash"></i></button></span>
       </div>`;
     }
-    if(er<totalExt&&er>0){
-      html+=`<div style="margin-top:8px;padding:6px 10px;background:#fde8c8;border-radius:6px;font-size:12px;color:#7a4700;display:flex;justify-content:space-between;"><span>Cubierto por pago</span><span>- ${fmt(totalExt-er)}</span></div>
-      <div style="padding:6px 10px;background:#fbdada;border-radius:6px;font-size:13px;font-weight:700;color:var(--red);display:flex;justify-content:space-between;margin-top:3px;"><span>Saldo adeudado en extras</span><span>${fmt(er)}</span></div>`;
-    } else if(er===0){
-      html+=`<div style="margin-top:8px;padding:6px 10px;background:var(--gbg);border-radius:6px;font-size:12px;color:var(--green);text-align:center;">Extras cubiertos por el pago recibido</div>`;
-    }
     html+=`</div>`;
   } else {
-    html+=`<div style="margin-top:1rem;padding:10px 14px;background:#f8f8f8;border-radius:8px;font-size:13px;color:#888;text-align:center;">Sin extras cargados — usá "Agregar extra" para sumar trabajos adicionales.</div>`;
+    html+=`<div style="margin-top:1rem;padding:10px 14px;background:#f8f8f8;border-radius:8px;font-size:13px;color:#888;text-align:center;">Sin extras — usá "Agregar extra" para sumar trabajos adicionales.</div>`;
   }
 
   document.getElementById('t-mes').innerHTML=html;
@@ -1098,19 +1101,7 @@ async function savePago(){
   showLoad(true);
   if(ePid){await sb.from('pagos').update({cliente_id:cid,fecha,importe:imp,nota,forma,cheque}).eq('id',ePid);}
   else await sb.from('pagos').insert({cliente_id:cid,fecha,importe:imp,nota,forma,cheque});
-  // Recalcular extras_pagados: cuánto del pago cubre extras después de cubrir meses
-  await loadAll();
-  const cliData=DATA.clientes.find(x=>x.id===cid);
-  if(cliData){
-    const totalMonths=getMeses(cliData).reduce((a,m)=>a+tarifa(cliData,m),0);
-    const totalPagosNow=DATA.pagos.filter(p=>sid(p.cid,cid)).reduce((a,p)=>a+p.imp,0);
-    const sobrante=Math.max(0,totalPagosNow-totalMonths);
-    const totalExtras=DATA.extras.filter(e=>sid(e.cid,cid)).reduce((a,e)=>a+e.imp,0);
-    const extrasPagados=Math.min(sobrante,totalExtras);
-    await sb.from('clientes').update({extras_pagados:extrasPagados}).eq('id',cid);
-    await loadAll();
-  }
-  showLoad(false);cm('m-pago');rPag();rDash();
+  await loadAll();showLoad(false);cm('m-pago');rPag();rDash();
   if(dCid){const c=DATA.clientes.find(x=>x.id===dCid);if(c){rDetRes(c);rDetMes(c);rDetPag(c);}}
 }
 
