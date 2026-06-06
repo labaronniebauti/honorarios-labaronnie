@@ -889,12 +889,42 @@ function rDetMes(c){
   const ea=extrasAd(c);
   const er=extrasRestante(c);
   const totalExt=ea.reduce((a,e)=>a+e.imp,0);
+
+  let html=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <span style="font-size:13px;color:#888;">${msTodos.length} meses generados</span>
+    <button class="btn bsm bp" onclick="openExtraFor('${c.id}')"><i class="ti ti-plus"></i> Agregar extra</button>
+  </div>
+  <div class="tw"><table><thead><tr><th>Período</th><th>Honorario</th><th>Estado</th><th>Importe adeudado</th></tr></thead><tbody>`;
+  for(const mes of [...msTodos].reverse()){
+    const t=tarifa(c,mes);const ad=adSet.has(mes);const parcial=parSet.has(mes);
+    const badge=ad?(parcial?'<span class="badge bp2">Pago parcial</span>':'<span class="badge bd">Adeudado</span>'):'<span class="badge bs">Pagado</span>';
+    const imp=ad?(parcial?fmt(parSet.get(mes)):fmt(t)):'—';
+    html+=`<tr><td style="font-weight:600">${mL(mes)}</td><td>${fmt(t)}</td><td>${badge}</td><td style="font-weight:700;color:${ad?'var(--red)':'var(--green)'}">${imp}</td></tr>`;
+  }
+  html+=`</tbody></table></div>`;
+
   if(ea.length){
-    html+=`<div class="extras-section" style="margin-top:1rem;"><div class="extras-section-title"><span><i class="ti ti-star" style="font-size:13px;"></i> Extras (${ea.length})</span><div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">${totalExt!==er?`<span style="font-size:11px;font-weight:400;text-decoration:line-through;opacity:.6;">${fmt(totalExt)}</span>`:''}<span>${fmt(er)} adeudado</span></div></div>`;
-    for(const ex of ea){html+=`<div class="extra-row"><span style="color:#555;font-size:13px;">${ex.desc}</span><span style="display:flex;align-items:center;gap:8px;"><strong style="color:#7a4700">${fmt(ex.imp)}</strong><button class="bdel" style="padding:2px 7px;font-size:11px;" onclick="delExtra('${ex.id}','${c.id}')"><i class="ti ti-trash"></i></button></span></div>`;}
-    if(er<totalExt&&er>0){html+=`<div style="margin-top:8px;padding:6px 10px;background:#fde8c8;border-radius:6px;font-size:12px;color:#7a4700;display:flex;justify-content:space-between;"><span>Cubierto por pago</span><span>- ${fmt(totalExt-er)}</span></div><div style="padding:6px 10px;background:#fbdada;border-radius:6px;font-size:13px;font-weight:700;color:var(--red);display:flex;justify-content:space-between;margin-top:3px;"><span>Saldo adeudado en extras</span><span>${fmt(er)}</span></div>`;}else if(er===0){html+=`<div style="margin-top:8px;padding:6px 10px;background:var(--gbg);border-radius:6px;font-size:12px;color:var(--green);text-align:center;">Extras cubiertos por el pago recibido</div>`;}
+    html+=`<div class="extras-section" style="margin-top:1rem;">
+      <div class="extras-section-title">
+        <span><i class="ti ti-star" style="font-size:13px;"></i> Extras (${ea.length})</span>
+        <span>${fmt(er)} adeudado</span>
+      </div>`;
+    for(const ex of ea){
+      html+=`<div class="extra-row"><span style="color:#555;font-size:13px;">${ex.desc}</span>
+        <span style="display:flex;align-items:center;gap:8px;"><strong style="color:#7a4700">${fmt(ex.imp)}</strong>
+        <button class="bdel" style="padding:2px 7px;font-size:11px;" onclick="delExtra('${ex.id}','${c.id}')"><i class="ti ti-trash"></i></button></span>
+      </div>`;
+    }
+    if(er<totalExt&&er>0){
+      html+=`<div style="margin-top:8px;padding:6px 10px;background:#fde8c8;border-radius:6px;font-size:12px;color:#7a4700;display:flex;justify-content:space-between;"><span>Cubierto por pago</span><span>- ${fmt(totalExt-er)}</span></div>
+      <div style="padding:6px 10px;background:#fbdada;border-radius:6px;font-size:13px;font-weight:700;color:var(--red);display:flex;justify-content:space-between;margin-top:3px;"><span>Saldo adeudado en extras</span><span>${fmt(er)}</span></div>`;
+    } else if(er===0){
+      html+=`<div style="margin-top:8px;padding:6px 10px;background:var(--gbg);border-radius:6px;font-size:12px;color:var(--green);text-align:center;">Extras cubiertos por el pago recibido</div>`;
+    }
     html+=`</div>`;
-  }else{html+=`<div style="margin-top:1rem;padding:10px 14px;background:#f8f8f8;border-radius:8px;font-size:13px;color:#888;text-align:center;">Sin extras cargados.</div>`;}
+  } else {
+    html+=`<div style="margin-top:1rem;padding:10px 14px;background:#f8f8f8;border-radius:8px;font-size:13px;color:#888;text-align:center;">Sin extras cargados — usá "Agregar extra" para sumar trabajos adicionales.</div>`;
+  }
 
   document.getElementById('t-mes').innerHTML=html;
 }
