@@ -1,17 +1,800 @@
-{
-  "name": "Honorarios Labaronnie",
-  "short_name": "Honorarios",
-  "description": "Sistema de gestión de honorarios — Estudio Contable Labaronnie",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#1a3a5c",
-  "orientation": "any",
-  "icons": [
-    {
-      "src": "icon.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    }
-  ]
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
+<title>Honorarios — Estudio Contable Labaronnie</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a3a5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Honorarios">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--c1:#1a3a5c;--c2:#2563a8;--c3:#e8f0fa;--green:#1a6b3a;--gbg:#eaf5ef;--red:#a32d2d;--rbg:#fcebeb;--amb:#854f0b;--abg:#faeeda;--brd:0.5px solid #e0e0e0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f7fb;min-height:100vh;}
+/* LOGIN */
+#login-screen{display:none;min-height:100vh;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a3a5c 0%,#2563a8 100%);}
+.login-box{background:#fff;border-radius:16px;padding:2.5rem 2rem;width:min(400px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.2);}
+.login-logo{font-size:22px;font-weight:700;color:#1a3a5c;margin-bottom:4px;}
+.login-sub{font-size:13px;color:#888;margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:1px solid #eee;}
+/* LOADING */
+#loading-overlay{display:none;position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px;}
+.spinner{width:36px;height:36px;border:3px solid #e3e8f0;border-top-color:#2563a8;border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* TOPBAR */
+.topbar{background:var(--c1);color:#fff;padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:50;}
+.topbar-title{font-size:15px;font-weight:500;}
+.topbar-sub{font-size:11px;opacity:.6;margin-top:1px;}
+/* NAV */
+.nav{background:#fff;border-bottom:var(--brd);display:flex;overflow-x:auto;position:sticky;top:56px;z-index:40;}
+.nb{padding:13px 20px;font-size:13px;font-weight:500;color:#666;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:6px;}
+.nb:hover{color:var(--c2);}
+.nb.active{color:var(--c2);border-bottom-color:var(--c2);}
+/* PAGES */
+.page{display:none;padding:1.5rem;max-width:1200px;margin:0 auto;}
+.page.active{display:block;}
+/* CARDS */
+.mets{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:1.5rem;}
+.met{background:#fff;border-radius:12px;border:var(--brd);padding:1rem 1.25rem;}
+.met-l{font-size:12px;color:#888;margin-bottom:4px;}
+.met-v{font-size:21px;font-weight:500;color:#1a1a1a;}
+.met-v.r{color:var(--red);}
+.met-v.g{color:var(--green);}
+.sec{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;}
+/* TABLES */
+.tw{background:#fff;border-radius:12px;border:var(--brd);overflow:hidden;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{padding:10px 14px;text-align:left;background:#f8f9fb;font-size:11px;font-weight:600;color:#888;border-bottom:var(--brd);text-transform:uppercase;letter-spacing:.04em;}
+td{padding:10px 14px;border-bottom:var(--brd);color:#1a1a1a;vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#f8f9fb;}
+/* BADGES */
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;}
+.bd{background:var(--rbg);color:var(--red);}
+.bw{background:var(--abg);color:var(--amb);}
+.bs{background:var(--gbg);color:var(--green);}
+.bi{background:var(--c3);color:var(--c1);}
+.bch{background:#f0e6fa;color:#5b2d91;}
+/* BUTTONS */
+.btn{padding:7px 14px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:.5px solid #ccc;background:#fff;color:#1a1a1a;transition:all .15s;}
+.btn:hover{background:#f5f5f5;}
+.bp{background:var(--c2);color:#fff;border-color:var(--c2);}
+.bp:hover{background:#1a4f8a;}
+.bs2{padding:4px 10px;font-size:12px;}
+.bdel{padding:3px 8px;font-size:12px;background:var(--rbg);color:var(--red);border:none;border-radius:8px;cursor:pointer;}
+/* FORMS */
+label{font-size:13px;font-weight:500;color:#555;display:block;margin-bottom:4px;}
+input,select,textarea{font-size:13px;border-radius:8px;border:.5px solid #ccc;padding:8px 10px;width:100%;outline:none;transition:border .15s;}
+input:focus,select:focus,textarea:focus{border-color:var(--c2);}
+.field{margin-bottom:12px;}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.ff{grid-column:1/-1;}
+.hr{border:none;border-top:var(--brd);margin:1.25rem 0;}
+.hint{font-size:11px;color:#888;margin-top:3px;}
+.ali{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;background:var(--c3);color:var(--c1);}
+.ali-ok{background:var(--gbg);color:var(--green);}
+/* SBAR */
+.sbar{display:flex;gap:8px;margin-bottom:1rem;align-items:center;flex-wrap:wrap;}
+.sbar input{flex:1;min-width:180px;max-width:300px;}
+/* MODALS */
+.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;}
+.mbg.open{display:flex;}
+.modal{background:#fff;border-radius:16px;border:var(--brd);width:min(720px,96vw);max-height:92vh;overflow-y:auto;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.15);}
+.mh{padding:1.25rem 1.5rem;border-bottom:var(--brd);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:2;}
+.mh h3{font-size:16px;font-weight:600;}
+.mb{padding:1.25rem 1.5rem;flex:1;}
+.mf{padding:1rem 1.5rem;border-top:var(--brd);display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:#fff;}
+/* TABS */
+.tabs{display:flex;border-bottom:var(--brd);margin-bottom:1.25rem;}
+.tab{padding:9px 16px;font-size:13px;font-weight:500;color:#888;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;}
+.tab.active{color:var(--c2);border-bottom-color:var(--c2);}
+.tp{display:none;}
+.tp.active{display:block;}
+/* MISC */
+.crow{display:grid;grid-template-columns:1fr 140px 32px;gap:8px;align-items:center;margin-bottom:8px;}
+.grupo-pill{display:inline-flex;align-items:center;gap:4px;background:var(--c3);color:var(--c1);border-radius:99px;padding:2px 8px;font-size:11px;font-weight:500;}
+.extra-inline{background:#f8f9fb;border:var(--brd);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;}
+.cheque-box{background:#fdf8ff;border:1px solid #d4b8f0;border-radius:12px;padding:1rem 1.25rem;margin-top:10px;}
+.periodo-box{background:#fff;border:var(--brd);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;}
+/* HISTORIAL */
+.hist-header{background:var(--c1);color:#fff;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;}
+.timeline-item{display:grid;grid-template-columns:90px 1fr;gap:0;}
+.tl-date{font-size:11px;color:#888;padding:10px 12px 10px 0;border-right:2px solid #e0e0e0;text-align:right;position:relative;}
+.tl-date::after{content:'';position:absolute;right:-5px;top:14px;width:8px;height:8px;border-radius:50%;background:var(--c2);}
+.tl-body{padding:8px 0 8px 16px;}
+.tl-card{background:#fff;border:var(--brd);border-radius:8px;padding:8px 12px;font-size:13px;}
+.tl-pago .tl-date::after{background:var(--green);}
+/* DOC */
+.doc-preview{background:#fff;border:var(--brd);border-radius:12px;padding:2rem;max-width:640px;margin:0 auto;}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <span style="font-size:13px;color:#666;">Cargando...</span>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Estudio Contable Labaronnie</div>
+    <div class="login-sub">Sistema de honorarios</div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="l-email" placeholder="tu@email.com">
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="l-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div id="l-err" style="color:var(--red);font-size:13px;margin-bottom:12px;display:none;"></div>
+    <button class="btn bp" style="width:100%;padding:11px;font-size:14px;" onclick="doLogin()" id="l-btn">
+      <i class="ti ti-login"></i> Ingresar
+    </button>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="main-app" style="display:none">
+  <div class="topbar">
+    <div><div class="topbar-title">Estudio Contable Labaronnie</div><div class="topbar-sub">Sistema de honorarios</div></div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span id="tf" style="font-size:12px;opacity:.7;"></span>
+      <button class="btn bs2" style="color:#fff;border-color:rgba(255,255,255,.3);background:transparent;" onclick="doLogout()"><i class="ti ti-logout"></i> Salir</button>
+    </div>
+  </div>
+  <div class="nav">
+    <button class="nb active" onclick="sp('dashboard',this)"><i class="ti ti-layout-dashboard"></i> Inicio</button>
+    <button class="nb" onclick="sp('clientes',this)"><i class="ti ti-users"></i> Clientes</button>
+    <button class="nb" onclick="sp('pagos',this)"><i class="ti ti-cash"></i> Pagos</button>
+    <button class="nb" onclick="sp('documentos',this)"><i class="ti ti-file-text"></i> Documentos</button>
+  </div>
+
+  <div id="page-dashboard" class="page active">
+    <div class="mets" id="metrics"></div>
+    <div class="sec">Clientes con mayor deuda</div>
+    <div class="tw"><table><thead><tr><th>Cliente</th><th>Meses adeudados</th><th>Deuda total</th><th>Último envío</th><th></th></tr></thead><tbody id="db-t"></tbody></table></div>
+  </div>
+
+  <div id="page-clientes" class="page">
+    <div class="sbar">
+      <input type="text" placeholder="Buscar por nombre..." id="sc" oninput="rCli()">
+      <button class="btn bp" onclick="openCli()"><i class="ti ti-plus"></i> Nuevo cliente</button>
+      <button class="btn" onclick="openGrupo()"><i class="ti ti-link"></i> Vincular clientes</button>
+    </div>
+    <div class="tw"><table><thead><tr><th>Cliente</th><th>Honorario</th><th>Período</th><th>Deuda actual</th><th>Grupo</th><th>Acciones</th></tr></thead><tbody id="cli-t"></tbody></table></div>
+  </div>
+
+  <div id="page-pagos" class="page">
+    <div class="sbar">
+      <input type="text" placeholder="Buscar cliente..." id="sp2" oninput="rPag()">
+      <button class="btn bp" onclick="openPago()"><i class="ti ti-plus"></i> Registrar pago</button>
+    </div>
+    <div class="tw"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Importe</th><th>Forma</th><th>Detalle</th><th></th></tr></thead><tbody id="pag-t"></tbody></table></div>
+  </div>
+
+  <div id="page-documentos" class="page">
+    <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Paso 1 — Cliente</div>
+    <div class="sbar" style="margin-bottom:1rem;">
+      <select id="doc-cli" style="min-width:240px;font-size:14px;" onchange="onDocCliChange()"><option value="">— Seleccionar cliente —</option></select>
+      <select id="doc-modo" style="font-size:13px;display:none;" onchange="rDoc()">
+        <option value="individual">Solo este cliente</option>
+        <option value="grupo">Grupo vinculado (fusionado)</option>
+      </select>
+    </div>
+    <div id="paso2" style="display:none;">
+      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Paso 2 — Período a informar</div>
+      <div class="periodo-box">
+        <div class="fg" style="max-width:480px;">
+          <div class="field" style="margin-bottom:6px;"><label style="font-size:12px;">Desde</label><select id="doc-desde" style="font-size:13px;" onchange="rDoc()"></select><div class="hint">Primer mes a informar.</div></div>
+          <div class="field" style="margin-bottom:6px;"><label style="font-size:12px;">Hasta</label><select id="doc-hasta" style="font-size:13px;" onchange="rDoc()"></select><div class="hint">Último mes a incluir.</div></div>
+        </div>
+        <div id="periodo-res" style="font-size:13px;color:#888;margin-top:4px;"></div>
+      </div>
+    </div>
+    <div id="paso3" style="display:none;">
+      <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Paso 3 — Generar</div>
+      <div class="sbar" style="margin-bottom:1rem;">
+        <button class="btn bp" onclick="genPDF()" id="btn-gen"><i class="ti ti-file-type-pdf"></i> Guardar PDF</button>
+        <button class="btn" onclick="imprimirDoc()" id="btn-print"><i class="ti ti-printer"></i> Imprimir</button>
+      </div>
+      <div id="doc-cont"></div>
+    </div>
+    <div class="sec" style="margin-top:1.5rem">Historial de envíos</div>
+    <div class="tw"><table><thead><tr><th>Fecha</th><th>Cliente / Grupo</th><th>Período informado</th><th>Total</th></tr></thead><tbody id="env-t"></tbody></table></div>
+  </div>
+</div>
+
+<!-- MODAL CLIENTE -->
+<div class="mbg" id="m-cli"><div class="modal">
+  <div class="mh"><h3 id="m-cli-t">Nuevo cliente</h3><button class="btn bs2" onclick="cm('m-cli')"><i class="ti ti-x"></i></button></div>
+  <div class="mb">
+    <div class="field"><label>Nombre del cliente</label><input type="text" id="cn" placeholder="Ej: Fausto Díaz"></div>
+    <div class="fg">
+      <div class="field"><label>Mes de inicio</label><input type="month" id="cd"><div class="hint">Desde este mes se generan los honorarios.</div></div>
+      <div class="field"><label>Mes hasta (opcional)</label><input type="month" id="ch"><div class="hint">Vacío = hasta el mes actual.</div></div>
+    </div>
+    <hr class="hr">
+    <div style="font-size:13px;font-weight:500;color:#555;margin-bottom:10px;">Conceptos del honorario mensual</div>
+    <div id="conc-cont"></div>
+    <button class="btn bs2" onclick="addConc()"><i class="ti ti-plus"></i> Agregar concepto</button>
+    <div style="margin-top:1rem;padding-top:1rem;border-top:var(--brd);display:flex;justify-content:space-between;">
+      <span style="font-size:13px;color:#888;">Total mensual:</span>
+      <span style="font-size:16px;font-weight:600;" id="ct">$ 0</span>
+    </div>
+  </div>
+  <div class="mf"><button class="btn" onclick="cm('m-cli')">Cancelar</button><button class="btn bp" onclick="saveCli()">Guardar</button></div>
+</div></div>
+
+<!-- MODAL DETALLE -->
+<div class="mbg" id="m-det"><div class="modal" style="width:min(820px,96vw)">
+  <div class="mh">
+    <div><h3 id="det-n"></h3><div id="det-s" style="font-size:12px;color:#888;margin-top:2px;"></div></div>
+    <div style="display:flex;gap:6px;">
+      <button class="btn bs2 bp" onclick="abrirHistorial(dCid)"><i class="ti ti-history"></i> Historial</button>
+      <button class="btn bs2" onclick="editDesde()"><i class="ti ti-edit"></i> Editar</button>
+      <button class="btn bs2" onclick="cm('m-det')"><i class="ti ti-x"></i></button>
+    </div>
+  </div>
+  <div class="mb">
+    <div id="det-res" style="margin-bottom:1.25rem;"></div>
+    <div class="tabs">
+      <button class="tab active" onclick="st('t-mes',this)">Meses y extras</button>
+      <button class="tab" onclick="st('t-pag',this)">Pagos recibidos</button>
+      <button class="tab" onclick="st('t-conc',this)">Conceptos</button>
+    </div>
+    <div class="tp active" id="t-mes"></div>
+    <div class="tp" id="t-pag"></div>
+    <div class="tp" id="t-conc"></div>
+  </div>
+  <div class="mf"><button class="btn" onclick="cm('m-det')">Cerrar</button></div>
+</div></div>
+
+<!-- MODAL HISTORIAL -->
+<div class="mbg" id="m-hist"><div class="modal" style="width:min(760px,96vw)">
+  <div class="mh"><h3 id="hist-title">Historial</h3><button class="btn bs2" onclick="cm('m-hist')"><i class="ti ti-x"></i></button></div>
+  <div class="mb" id="hist-body"></div>
+  <div class="mf"><button class="btn" onclick="cm('m-hist')">Cerrar</button></div>
+</div></div>
+
+<!-- MODAL PAGO -->
+<div class="mbg" id="m-pago"><div class="modal" style="width:min(520px,96vw)">
+  <div class="mh"><h3 id="m-pago-t">Registrar pago</h3><button class="btn bs2" onclick="cm('m-pago')"><i class="ti ti-x"></i></button></div>
+  <div class="mb">
+    <div class="fg">
+      <div class="field ff"><label>Cliente</label><select id="pg-cli" onchange="rDeuda()"><option value="">— Seleccionar —</option></select></div>
+      <div class="field"><label>Fecha del pago</label><input type="date" id="pg-f"></div>
+      <div class="field"><label>Importe ($)</label><input type="number" id="pg-i" placeholder="0" oninput="rSaldo()"></div>
+      <div class="field ff"><label>Forma de pago</label>
+        <select id="pg-forma" onchange="toggleCheque()">
+          <option>Efectivo</option><option>Transferencia</option><option>Cheque</option><option>Otro</option>
+        </select>
+      </div>
+      <div class="field ff"><label>Nota (opcional)</label><input type="text" id="pg-n" placeholder="Ej: referencia, banco..."></div>
+    </div>
+    <div id="cheque-datos" style="display:none;">
+      <div class="cheque-box">
+        <div style="font-size:12px;font-weight:600;color:#5b2d91;margin-bottom:10px;"><i class="ti ti-writing"></i> Datos del cheque <span style="font-weight:400;opacity:.7;">(opcional)</span></div>
+        <div class="fg3">
+          <div class="field"><label style="font-size:12px;">Número de cheque</label><input type="text" id="ch-num" placeholder="00012345"></div>
+          <div class="field"><label style="font-size:12px;">Fecha de cobro</label><input type="date" id="ch-vto"></div>
+          <div class="field"><label style="font-size:12px;">Banco emisor</label><input type="text" id="ch-banco" placeholder="Banco Provincia"></div>
+        </div>
+        <div class="fg">
+          <div class="field"><label style="font-size:12px;">A nombre de</label><input type="text" id="ch-nombre" placeholder="Labaronnie Héctor"></div>
+          <div class="field"><label style="font-size:12px;">Cuenta / CBU</label><input type="text" id="ch-cuenta" placeholder="Cta Cte 1234-5"></div>
+        </div>
+        <div class="field" style="margin-bottom:0;"><label style="font-size:12px;">Observaciones</label><input type="text" id="ch-obs" placeholder="Cheque diferido, endosado..."></div>
+      </div>
+    </div>
+    <div id="pg-info" style="margin-top:10px;"></div>
+  </div>
+  <div class="mf"><button class="btn" onclick="cm('m-pago')">Cancelar</button><button class="btn bp" id="btn-pg" onclick="savePago()">Registrar pago</button></div>
+</div></div>
+
+<!-- MODAL VINCULAR -->
+<div class="mbg" id="m-grupo"><div class="modal" style="width:min(500px,96vw)">
+  <div class="mh"><h3>Vincular clientes</h3><button class="btn bs2" onclick="cm('m-grupo')"><i class="ti ti-x"></i></button></div>
+  <div class="mb">
+    <div class="ali">Vinculá dos o más clientes para enviar el documento fusionado o por separado.</div>
+    <div class="field"><label>Nombre del grupo</label><input type="text" id="grp-n" placeholder="Ej: Familia Díaz"></div>
+    <div class="field"><label>Seleccioná los clientes</label><div id="grp-checks" style="display:flex;flex-direction:column;gap:8px;margin-top:6px;max-height:240px;overflow-y:auto;"></div></div>
+    <div id="grp-preview" style="margin-top:12px;"></div>
+  </div>
+  <div class="mf"><button class="btn" onclick="cm('m-grupo')">Cancelar</button><button class="btn bp" onclick="saveGrupo()">Guardar grupo</button></div>
+</div></div>
+
+<script>
+const SUPA_URL='https://odynwnpyfeoekyxnzdng.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9keW53bnB5ZmVvZWt5eG56ZG5nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MDQ1MzksImV4cCI6MjA5NjI4MDUzOX0.ePBlVubz9cs9KVEshtYbf06YicuUymrzgyP-uS8OxNU';
+const {createClient}=supabase;
+const sb=createClient(SUPA_URL,SUPA_KEY);
+
+const hoy=new Date();
+let DATA={clientes:[],pagos:[],extras:[],grupos:[],envios:[]};
+
+// ---- MAPPERS ----
+const rCli_=r=>({id:r.id,nombre:r.nombre,conceptos:r.conceptos||[],honorarioTotal:r.honorario_total,desde:r.desde,hasta:r.hasta,historialTarifas:r.historial_tarifas||[]});
+const rPag_=r=>({id:r.id,cid:r.cliente_id,fecha:r.fecha,imp:r.importe,forma:r.forma,nota:r.nota,cheque:r.cheque});
+const rExt_=r=>({id:r.id,cid:r.cliente_id,fecha:r.fecha,imp:r.importe,desc:r.descripcion});
+const rGrp_=r=>({id:r.id,nombre:r.nombre,miembros:r.miembros||[]});
+const rEnv_=r=>({id:r.id,cids:r.cliente_ids||[],grupoId:r.grupo_id,fecha:r.fecha,hora:r.hora,total:r.total,periodoDesde:r.periodo_desde,periodoHasta:r.periodo_hasta});
+
+// ---- HELPERS ----
+function fmt(n){const abs=Math.round(Math.abs(n));return(n<0?'-':'')+'$ '+abs.toLocaleString('es-AR');}
+function fD(s){if(!s)return'—';return new Date(s+'T12:00:00').toLocaleDateString('es-AR');}
+function mL(ym2){const[y,m]=ym2.split('-');return['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][parseInt(m)-1]+' '+y;}
+function ymFn(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+function udm(ym2){const[y,m]=ym2.split('-');return new Date(parseInt(y),parseInt(m),0).getDate();}
+function sig(ym2){const[y,m]=ym2.split('-');return ymFn(new Date(parseInt(y),parseInt(m),1));}
+function showLoad(v){document.getElementById('loading-overlay').style.display=v?'flex':'none';}
+
+function tarifa(cli,mes){
+  if(!cli.historialTarifas||!cli.historialTarifas.length)return cli.honorarioTotal||0;
+  const s=[...cli.historialTarifas].sort((a,b)=>b.desde.localeCompare(a.desde));
+  for(const h of s)if(mes>=h.desde)return h.total;return cli.honorarioTotal||0;
 }
+function getMeses(cli){const fin=cli.hasta||ymFn(hoy);let ms=[],m=cli.desde||ymFn(hoy);while(m<=fin){ms.push(m);m=sig(m);}return ms;}
+function deuda(cli){
+  const ms=getMeses(cli);
+  return ms.reduce((a,m)=>a+tarifa(cli,m),0)+DATA.extras.filter(e=>e.cid===cli.id).reduce((a,e)=>a+e.imp,0)-DATA.pagos.filter(p=>p.cid===cli.id).reduce((a,p)=>a+p.imp,0);
+}
+function mesesAdRango(cli,desde,hasta){
+  const msTodos=getMeses(cli).filter(m=>m>=desde&&m<=hasta);
+  let pr=DATA.pagos.filter(p=>p.cid===cli.id).reduce((a,p)=>a+p.imp,0);
+  const msAntes=getMeses(cli).filter(m=>m<desde);
+  for(const m of msAntes){const t=tarifa(cli,m);const ex=DATA.extras.filter(e=>e.cid===cli.id&&e.fecha.startsWith(m));const tot=t+ex.reduce((a,e)=>a+e.imp,0);if(pr>=tot)pr-=tot;else pr=0;}
+  let pend=[];
+  for(const m of msTodos){const t=tarifa(cli,m);const ex=DATA.extras.filter(e=>e.cid===cli.id&&e.fecha.startsWith(m));const tot=t+ex.reduce((a,e)=>a+e.imp,0);if(pr>=tot)pr-=tot;else{pend.push({mes:m,tarifa:t,extras:ex,total:tot});pr=0;}}
+  return pend;
+}
+function mesesAd(cli){return mesesAdRango(cli,cli.desde||ymFn(hoy),cli.hasta||ymFn(hoy));}
+function ultimoPago(cli){return[...DATA.pagos.filter(p=>p.cid===cli.id)].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0]||null;}
+function getGrupo(cid){return DATA.grupos.find(g=>g.miembros.includes(cid));}
+function toggleCheque(){document.getElementById('cheque-datos').style.display=document.getElementById('pg-forma').value==='Cheque'?'block':'none';}
+function chequeResumen(p){if(p.forma!=='Cheque'||!p.cheque)return'';const ch=p.cheque;const pts=[];if(ch.num)pts.push('N° '+ch.num);if(ch.vto)pts.push('Vto '+fD(ch.vto));if(ch.banco)pts.push(ch.banco);if(ch.nombre)pts.push('A nombre: '+ch.nombre);if(ch.obs)pts.push(ch.obs);return pts.join(' · ');}
+
+// ---- AUTH ----
+async function doLogin(){
+  const email=document.getElementById('l-email').value;
+  const pass=document.getElementById('l-pass').value;
+  const btn=document.getElementById('l-btn');
+  const err=document.getElementById('l-err');
+  btn.innerHTML='<i class="ti ti-loader"></i> Ingresando...';btn.disabled=true;err.style.display='none';
+  const{error}=await sb.auth.signInWithPassword({email,password:pass});
+  if(error){err.textContent='Email o contraseña incorrectos.';err.style.display='block';btn.innerHTML='<i class="ti ti-login"></i> Ingresar';btn.disabled=false;}
+  else await initApp();
+}
+async function doLogout(){
+  await sb.auth.signOut();
+  document.getElementById('main-app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+}
+
+// ---- DATA LOADING ----
+async function loadAll(){
+  const[c,p,e,g,en]=await Promise.all([
+    sb.from('clientes').select('*').order('nombre'),
+    sb.from('pagos').select('*').order('fecha',{ascending:false}),
+    sb.from('extras').select('*').order('fecha',{ascending:false}),
+    sb.from('grupos').select('*'),
+    sb.from('envios').select('*').order('created_at',{ascending:false})
+  ]);
+  DATA.clientes=(c.data||[]).map(rCli_);
+  DATA.pagos=(p.data||[]).map(rPag_);
+  DATA.extras=(e.data||[]).map(rExt_);
+  DATA.grupos=(g.data||[]).map(rGrp_);
+  DATA.envios=(en.data||[]).map(rEnv_);
+}
+
+async function initApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('main-app').style.display='block';
+  document.getElementById('tf').textContent=hoy.toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  showLoad(true);
+  await loadAll();
+  showLoad(false);
+  rDash();
+}
+
+// ---- NAVIGATION ----
+function sp(id,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(btn)btn.classList.add('active');
+  ({dashboard:rDash,clientes:rCli,pagos:rPag,documentos:rDocs}[id]||(() => {}))();
+}
+function cm(id){document.getElementById(id).classList.remove('open');}
+function om(id){document.getElementById(id).classList.add('open');}
+document.querySelectorAll('.mbg').forEach(m=>m.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');}));
+
+// ---- DASHBOARD ----
+function rDash(){
+  const td=DATA.clientes.reduce((a,c)=>a+Math.max(0,deuda(c)),0);
+  const cd=DATA.clientes.filter(c=>deuda(c)>0).length;
+  const tc=DATA.pagos.reduce((a,p)=>a+p.imp,0);
+  document.getElementById('metrics').innerHTML=`
+    <div class="met"><div class="met-l">Total adeudado</div><div class="met-v r">${fmt(td)}</div></div>
+    <div class="met"><div class="met-l">Clientes con deuda</div><div class="met-v">${cd} / ${DATA.clientes.length}</div></div>
+    <div class="met"><div class="met-l">Total cobrado histórico</div><div class="met-v g">${fmt(tc)}</div></div>
+    <div class="met"><div class="met-l">Envíos registrados</div><div class="met-v">${DATA.envios.length}</div></div>`;
+  const sorted=[...DATA.clientes].sort((a,b)=>deuda(b)-deuda(a)).slice(0,10);
+  const tb=document.getElementById('db-t');
+  if(!sorted.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;padding:2rem;color:#888;">No hay clientes aún.</td></tr>';return;}
+  tb.innerHTML=sorted.map(c=>{
+    const d=deuda(c),m=mesesAd(c).length;
+    const ult=DATA.envios.filter(e=>e.cids&&e.cids.includes(c.id)).sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
+    const b=d<=0?'<span class="badge bs">Al día</span>':m>=4?'<span class="badge bd">'+m+' meses</span>':'<span class="badge bw">'+m+' mes'+(m>1?'es':'')+'</span>';
+    return`<tr><td><strong style="font-weight:600">${c.nombre}</strong></td><td>${b}</td><td style="font-weight:600;color:${d>0?'var(--red)':'var(--green)'}">${fmt(Math.max(0,d))}</td><td style="font-size:12px;color:#888;">${ult?fD(ult.fecha):'Nunca'}</td><td><button class="btn bs2" onclick="openDet('${c.id}')">Ver</button></td></tr>`;
+  }).join('');
+}
+
+// ---- CLIENTES ----
+function rCli(){
+  const q=(document.getElementById('sc').value||'').toLowerCase();
+  const lista=[...DATA.clientes].filter(c=>c.nombre.toLowerCase().includes(q)).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+  const tb=document.getElementById('cli-t');
+  if(!lista.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:2rem;color:#888;">'+(q?'Sin resultados.':'No hay clientes aún.')+'</td></tr>';return;}
+  tb.innerHTML=lista.map(c=>{
+    const d=deuda(c);const per=c.hasta?mL(c.desde)+' → '+mL(c.hasta):mL(c.desde)+' → hoy';
+    const grp=getGrupo(c.id);const grpT=grp?`<span class="grupo-pill"><i class="ti ti-link" style="font-size:10px"></i> ${grp.nombre}</span>`:'—';
+    return`<tr><td><strong style="font-weight:600">${c.nombre}</strong></td><td>${fmt(c.honorarioTotal)}/mes</td><td style="font-size:12px;color:#888;">${per}</td><td style="font-weight:600;color:${d>0?'var(--red)':d<0?'var(--green)':'inherit'}">${d<0?'A favor '+fmt(Math.abs(d)):fmt(Math.max(0,d))}</td><td>${grpT}</td><td style="display:flex;gap:5px;"><button class="btn bs2" onclick="openDet('${c.id}')"><i class="ti ti-eye"></i> Ver</button><button class="btn bs2" onclick="editCli('${c.id}')"><i class="ti ti-edit"></i></button></td></tr>`;
+  }).join('');
+}
+
+// ---- PAGOS ----
+function rPag(){
+  const q=(document.getElementById('sp2').value||'').toLowerCase();
+  const rows=[...DATA.pagos].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const tb=document.getElementById('pag-t');
+  if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:2rem;color:#888;">Sin pagos.</td></tr>';return;}
+  const f=rows.filter(p=>{const c=DATA.clientes.find(x=>x.id===p.cid);return!q||(c&&c.nombre.toLowerCase().includes(q));});
+  if(!f.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:2rem;color:#888;">Sin resultados.</td></tr>';return;}
+  tb.innerHTML=f.map(p=>{
+    const c=DATA.clientes.find(x=>x.id===p.cid);
+    const ft=p.forma==='Cheque'?'<span class="badge bch">Cheque</span>':p.forma==='Transferencia'?'<span class="badge bi">Transf.</span>':'<span class="badge bs">'+(p.forma||'Efectivo')+'</span>';
+    const det=chequeResumen(p)?`<span style="font-size:11px;color:#5b2d91;">${chequeResumen(p)}</span>`:p.nota?`<span style="font-size:12px;color:#888;">${p.nota}</span>`:'—';
+    return`<tr><td style="font-size:12px;color:#888;">${fD(p.fecha)}</td><td>${c?c.nombre:'—'}</td><td style="font-weight:600;color:var(--green)">+ ${fmt(p.imp)}</td><td>${ft}</td><td>${det}</td><td style="display:flex;gap:5px;"><button class="btn bs2" onclick="editPago('${p.id}')"><i class="ti ti-edit"></i></button><button class="bdel" onclick="delPago('${p.id}')"><i class="ti ti-trash"></i></button></td></tr>`;
+  }).join('');
+}
+
+// ---- DOCUMENTOS ----
+function rDocs(){
+  const sel=document.getElementById('doc-cli');const cv=sel.value;
+  sel.innerHTML='<option value="">— Seleccionar cliente —</option>'+[...DATA.clientes].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+  if(cv)sel.value=cv;
+  if(!cv){document.getElementById('paso2').style.display='none';document.getElementById('paso3').style.display='none';}
+  rEnvios();
+}
+function rEnvios(){
+  const envios=[...DATA.envios].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const tb=document.getElementById('env-t');
+  if(!envios.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;padding:2rem;color:#888;">Sin envíos.</td></tr>';return;}
+  tb.innerHTML=envios.map(e=>{
+    let n='—';if(e.grupoId){const g=DATA.grupos.find(x=>x.id===e.grupoId);n=g?g.nombre:'—';}
+    else if(e.cids&&e.cids.length===1){const c=DATA.clientes.find(x=>x.id===e.cids[0]);n=c?c.nombre:'—';}
+    const per=e.periodoDesde&&e.periodoHasta?mL(e.periodoDesde)+' → '+mL(e.periodoHasta):'—';
+    return`<tr><td style="font-size:13px;">${fD(e.fecha)} <span style="font-size:11px;color:#888;">${e.hora}</span></td><td>${n}</td><td style="font-size:12px;color:#888;">${per}</td><td style="font-weight:600">${fmt(e.total)}</td></tr>`;
+  }).join('');
+}
+function onDocCliChange(){
+  const id=document.getElementById('doc-cli').value;
+  if(!id){document.getElementById('paso2').style.display='none';document.getElementById('paso3').style.display='none';return;}
+  const cli=DATA.clientes.find(c=>c.id===id);
+  const grp=getGrupo(id);
+  document.getElementById('doc-modo').style.display=grp?'':'none';
+  const msTodos=getMeses(cli);
+  const sd=document.getElementById('doc-desde');const sh=document.getElementById('doc-hasta');
+  sd.innerHTML=msTodos.map(m=>`<option value="${m}">${mL(m)}</option>`).join('');
+  sh.innerHTML=[...msTodos].reverse().map(m=>`<option value="${m}">${mL(m)}</option>`).join('');
+  const pend=mesesAd(cli);
+  if(pend.length)sd.value=pend[0].mes;else sd.value=msTodos[msTodos.length-1];
+  sh.value=msTodos[msTodos.length-1];
+  document.getElementById('paso2').style.display='block';
+  rDoc();
+}
+let docHtmlActual='',docDataActual=null;
+function rDoc(){
+  const id=document.getElementById('doc-cli').value;
+  if(!id)return;
+  const cli=DATA.clientes.find(c=>c.id===id);
+  const grp=getGrupo(id);const modo=document.getElementById('doc-modo').value;
+  document.getElementById('doc-modo').style.display=grp?'':'none';
+  let ids=[id];if(modo==='grupo'&&grp)ids=grp.miembros;
+  const desde=document.getElementById('doc-desde').value;
+  const hasta=document.getElementById('doc-hasta').value;
+  if(!desde||!hasta||desde>hasta){document.getElementById('periodo-res').innerHTML='<span style="color:var(--red);">⚠ El inicio debe ser anterior o igual al fin.</span>';document.getElementById('paso3').style.display='none';return;}
+  const msEnRango=getMeses(cli).filter(m=>m>=desde&&m<=hasta);
+  document.getElementById('periodo-res').innerHTML=`<span style="color:#888;">Meses incluidos: <strong style="color:#1a1a1a;">${msEnRango.length}</strong> · Período: <strong style="color:#1a1a1a;">${mL(desde)} → ${mL(hasta)}</strong></span>`;
+  const data=buildDocData(ids,desde,hasta);
+  docDataActual={ids,desde,hasta,grp,modo,titulo:(modo==='grupo'&&grp)?grp.nombre:cli.nombre};
+  if(!data.totalRango&&data.secciones.every(s=>s.subtotalRango<=0)){
+    document.getElementById('doc-cont').innerHTML=`<div class="ali ali-ok">✓ No hay deuda en el período ${mL(desde)} → ${mL(hasta)}.</div>`;
+    document.getElementById('paso3').style.display='block';
+    document.getElementById('btn-gen').disabled=true;document.getElementById('btn-print').disabled=true;
+    docHtmlActual='';return;
+  }
+  document.getElementById('btn-gen').disabled=false;document.getElementById('btn-print').disabled=false;
+  const html=buildDocHTML(data,docDataActual.titulo,desde,hasta);
+  docHtmlActual=html;document.getElementById('doc-cont').innerHTML=html;document.getElementById('paso3').style.display='block';
+}
+function buildDocData(ids,desde,hasta){
+  const clientes=ids.map(id=>DATA.clientes.find(c=>c.id===id)).filter(Boolean);
+  let secciones=[],totalRango=0;
+  for(const cli of clientes){
+    const pend=mesesAdRango(cli,desde,hasta);
+    const extH=DATA.extras.filter(e=>e.cid===cli.id&&e.fecha>=desde+'-01'&&e.fecha<=hasta+'-31'&&!pend.find(mp=>e.fecha.startsWith(mp.mes)));
+    const subtotalRango=pend.reduce((a,m)=>a+m.total,0)+extH.reduce((a,e)=>a+e.imp,0);
+    const ultPago=ultimoPago(cli);const saldoTotal=deuda(cli);
+    totalRango+=subtotalRango;
+    secciones.push({cli,pend,extH,subtotalRango,ultPago,saldoTotal});
+  }
+  return{secciones,totalRango};
+}
+function buildDocHTML(data,titulo,desde,hasta){
+  const{secciones,totalRango}=data;
+  const mLn=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const hd=udm(hasta)+' de '+mLn[parseInt(hasta.split('-')[1])-1]+' de '+hasta.split('-')[0];
+  const fst=`font-family:'EB Garamond',Georgia,serif;`;
+  const fl=`<link href='https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;700&display=swap' rel='stylesheet'>`;
+  let html=`${fl}<div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:2rem;max-width:640px;margin:0 auto;${fst}color:#1a1a1a;line-height:1.6;font-size:15px;">
+    <div style="font-size:22px;font-weight:700;color:#1a3a5c;">Estudio Contable Labaronnie</div>
+    <div style="font-size:13px;color:#888;margin-bottom:6px;font-style:italic;">Contador Público · Trenque Lauquen, Buenos Aires</div>
+    <hr style="border:none;border-top:2px solid #1a3a5c;margin:10px 0 14px;">
+    <div style="font-size:17px;font-weight:700;margin-bottom:2px;">${titulo}</div>
+    <div style="font-size:13px;color:#888;margin-bottom:1.5rem;font-style:italic;">Honorarios adeudados al ${hd}</div>`;
+  for(const sec of secciones){
+    if(secciones.length>1)html+=`<div style="font-size:14px;font-weight:700;color:#1a3a5c;margin:1rem 0 6px;padding:6px 12px;background:#e8f0fa;border-radius:4px;">${sec.cli.nombre}</div>`;
+    if(sec.pend.length){
+      html+=`<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#aaa;margin-bottom:8px;">Períodos adeudados</div>`;
+      for(const mp of sec.pend){
+        html+=`<div style="background:#f8f9fb;border-radius:6px;padding:10px 14px;margin-bottom:8px;border-left:3px solid #1a3a5c;"><div style="display:flex;justify-content:space-between;font-weight:700;font-size:15px;color:#1a3a5c;margin-bottom:6px;"><span>${mL(mp.mes)}</span><span>${fmt(mp.total)}</span></div>`;
+        for(const conc of sec.cli.conceptos)html+=`<div style="display:flex;justify-content:space-between;font-size:13px;color:#555;padding:2px 0;">${conc.nombre}<span>${fmt(conc.importe)}</span></div>`;
+        for(const ex of mp.extras)html+=`<div style="display:flex;justify-content:space-between;font-size:13px;color:#7a5200;padding:2px 0;border-top:1px dashed #e8d5a0;margin-top:5px;padding-top:5px;font-style:italic;"><span>+ ${ex.desc} <span style="font-size:11px;color:#aaa;">(${fD(ex.fecha)})</span></span><span>${fmt(ex.imp)}</span></div>`;
+        html+=`</div>`;
+      }
+    } else {
+      html+=`<div style="background:#eaf5ef;color:#1a6b3a;padding:8px 12px;border-radius:6px;font-size:13px;margin-bottom:8px;">✓ Sin meses adeudados en el período seleccionado.</div>`;
+    }
+    if(sec.extH.length){
+      html+=`<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#aaa;margin:10px 0 8px;">Trabajos adicionales</div>`;
+      for(const ex of sec.extH)html+=`<div style="background:#fdf6ec;border-radius:6px;padding:8px 14px;margin-bottom:6px;border-left:3px solid #e8a020;"><div style="display:flex;justify-content:space-between;font-size:14px;font-style:italic;"><span style="color:#7a5200">${ex.desc}</span><span style="font-weight:700">${fmt(ex.imp)}</span></div><div style="font-size:11px;color:#aaa;">${fD(ex.fecha)}</div></div>`;
+    }
+    if(sec.ultPago){
+      const forma=sec.ultPago.forma||'';const nota=sec.ultPago.nota?' · '+sec.ultPago.nota:'';const chR=chequeResumen(sec.ultPago);
+      html+=`<div style="background:#f0faf4;border-radius:6px;padding:10px 14px;margin:10px 0;border-left:3px solid #1a6b3a;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#1a6b3a;margin-bottom:5px;">Último pago recibido</div><div style="display:flex;justify-content:space-between;font-size:14px;"><span style="color:#333;">${fD(sec.ultPago.fecha)}${forma?' — '+forma:''}${nota}</span><span style="font-weight:700;color:#1a6b3a;">+ ${fmt(sec.ultPago.imp)}</span></div>${chR?`<div style="font-size:12px;color:#5b2d91;margin-top:3px;">${chR}</div>`:''}</div>`;
+    }
+    if(secciones.length>1)html+=`<div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;color:${sec.subtotalRango>0?'#a32d2d':'#1a6b3a'};border-top:1px solid #ddd;padding-top:8px;margin-bottom:1rem;"><span>Subtotal ${sec.cli.nombre}</span><span>${fmt(sec.subtotalRango)}</span></div>`;
+  }
+  html+=`<div style="display:flex;justify-content:space-between;padding:12px 0 0;border-top:2px solid #1a3a5c;margin-top:10px;font-size:18px;font-weight:700;color:${totalRango>0?'#1a3a5c':'#1a6b3a'};"><span>${totalRango>0?'Total adeudado':'Sin deuda pendiente'}</span><span>${fmt(totalRango)}</span></div></div>`;
+  return html;
+}
+function imprimirDoc(){
+  if(!docHtmlActual)return;
+  const win=window.open('','_blank','width=800,height=900');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><link href='https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;700&display=swap' rel='stylesheet'><style>*{box-sizing:border-box;margin:0;padding:0;}body{background:#fff;padding:20px;}@media print{body{padding:0;}@page{margin:15mm;}}</style></head><body>${docHtmlActual}<script>window.onload=function(){window.print();}<\/script></body></html>`);
+  win.document.close();
+}
+async function genPDF(){
+  if(!docDataActual)return;
+  const{ids,desde,hasta,grp,modo,titulo}=docDataActual;
+  const data=buildDocData(ids,desde,hasta);
+  const{secciones,totalRango}=data;
+  const mLn=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const hd=udm(hasta)+' de '+mLn[parseInt(hasta.split('-')[1])-1]+' de '+hasta.split('-')[0];
+  const{jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
+  const W=210,M=18,cw=W-M*2;let yy=20;
+  const chk=()=>{if(yy>272){doc.addPage();yy=20;}};
+  doc.setFillColor(26,58,92);doc.rect(0,0,210,32,'F');
+  doc.setTextColor(255,255,255);doc.setFontSize(18);doc.setFont('times','bold');doc.text('Estudio Contable Labaronnie',M,13);
+  doc.setFontSize(9);doc.setFont('times','italic');doc.text('Contador Público · Trenque Lauquen, Buenos Aires',M,20);
+  doc.setFont('times','normal');doc.text('Honorarios adeudados al '+hd,W-M,20,{align:'right'});
+  yy=42;doc.setTextColor(26,58,92);doc.setFontSize(15);doc.setFont('times','bold');doc.text(titulo,M,yy);yy+=4;
+  doc.setDrawColor(26,58,92);doc.setLineWidth(.8);doc.line(M,yy,W-M,yy);yy+=7;
+  for(const sec of secciones){
+    chk();if(secciones.length>1){doc.setFillColor(232,240,250);doc.roundedRect(M,yy-4,cw,9,2,2,'F');doc.setTextColor(26,58,92);doc.setFontSize(11);doc.setFont('times','bold');doc.text(sec.cli.nombre,M+3,yy+2);yy+=12;}
+    if(sec.pend.length){
+      doc.setTextColor(160,160,160);doc.setFontSize(8);doc.setFont('times','normal');doc.text('PERÍODOS ADEUDADOS',M,yy);yy+=5;
+      for(const mp of sec.pend){
+        chk();doc.setFillColor(248,249,251);doc.roundedRect(M,yy-1,cw,7,1,1,'F');doc.setDrawColor(26,58,92);doc.setLineWidth(.5);doc.line(M,yy-1,M,yy+6);
+        doc.setTextColor(26,58,92);doc.setFontSize(11);doc.setFont('times','bold');doc.text(mL(mp.mes),M+3,yy+4);doc.text(fmt(mp.total),W-M-2,yy+4,{align:'right'});yy+=9;
+        for(const conc of sec.cli.conceptos){chk();doc.setTextColor(80,80,80);doc.setFontSize(9);doc.setFont('times','normal');doc.text(conc.nombre,M+5,yy);doc.text(fmt(conc.importe),W-M-2,yy,{align:'right'});yy+=5;}
+        for(const ex of mp.extras){chk();doc.setTextColor(122,82,0);doc.setFontSize(9);doc.setFont('times','italic');const txt='+ '+ex.desc+' ('+fD(ex.fecha)+')';const ls=doc.splitTextToSize(txt,cw-30);doc.text(ls,M+5,yy);doc.setFont('times','normal');doc.text(fmt(ex.imp),W-M-2,yy,{align:'right'});yy+=ls.length*5;}
+        yy+=2;
+      }
+    }
+    if(sec.extH.length){chk();doc.setTextColor(160,160,160);doc.setFontSize(8);doc.setFont('times','normal');doc.text('TRABAJOS ADICIONALES',M,yy);yy+=5;for(const ex of sec.extH){chk();doc.setFillColor(253,246,236);doc.roundedRect(M,yy-1,cw,14,1,1,'F');doc.setDrawColor(232,160,32);doc.setLineWidth(.5);doc.line(M,yy-1,M,yy+13);doc.setTextColor(122,82,0);doc.setFontSize(10);doc.setFont('times','italic');const ls=doc.splitTextToSize(ex.desc,cw-30);doc.text(ls,M+3,yy+4);doc.setFont('times','bold');doc.text(fmt(ex.imp),W-M-2,yy+4,{align:'right'});doc.setFont('times','normal');doc.setTextColor(170,170,170);doc.setFontSize(8);doc.text(fD(ex.fecha),M+3,yy+10);yy+=16;}}
+    if(sec.ultPago){chk();const forma=sec.ultPago.forma||'';const nota=sec.ultPago.nota?' · '+sec.ultPago.nota:'';const chR=chequeResumen(sec.ultPago);const hh=chR?22:16;doc.setFillColor(240,250,244);doc.roundedRect(M,yy-1,cw,hh,1,1,'F');doc.setDrawColor(26,107,58);doc.setLineWidth(.6);doc.line(M,yy-1,M,yy+hh-1);doc.setTextColor(26,107,58);doc.setFontSize(8);doc.setFont('times','bold');doc.text('ÚLTIMO PAGO RECIBIDO',M+3,yy+4);doc.setFontSize(10);doc.setFont('times','normal');doc.setTextColor(50,50,50);doc.text(fD(sec.ultPago.fecha)+(forma?' — '+forma:'')+nota,M+3,yy+10);doc.setFont('times','bold');doc.setTextColor(26,107,58);doc.text('+ '+fmt(sec.ultPago.imp),W-M-2,yy+10,{align:'right'});if(chR){doc.setFontSize(8);doc.setFont('times','italic');doc.setTextColor(91,45,145);const ls=doc.splitTextToSize(chR,cw-6);doc.text(ls,M+3,yy+16);}yy+=hh+4;}
+    if(secciones.length>1){chk();doc.setDrawColor(200,210,225);doc.setLineWidth(.3);doc.line(M,yy,W-M,yy);yy+=5;doc.setTextColor(sec.subtotalRango>0?163:26,sec.subtotalRango>0?45:107,sec.subtotalRango>0?45:58);doc.setFontSize(10);doc.setFont('times','bold');doc.text('Subtotal '+sec.cli.nombre,M,yy);doc.text(fmt(sec.subtotalRango),W-M,yy,{align:'right'});yy+=10;}
+  }
+  chk();doc.setDrawColor(26,58,92);doc.setLineWidth(.8);doc.line(M,yy,W-M,yy);yy+=7;
+  doc.setTextColor(totalRango>0?26:26,totalRango>0?58:107,totalRango>0?92:58);doc.setFontSize(14);doc.setFont('times','bold');doc.text(totalRango>0?'Total adeudado':'Sin deuda en el período',M,yy);doc.text(fmt(totalRango),W-M,yy,{align:'right'});
+  const fp=doc.internal.getNumberOfPages();for(let i=1;i<=fp;i++){doc.setPage(i);doc.setDrawColor(200,210,225);doc.setLineWidth(.3);doc.line(M,285,W-M,285);doc.setTextColor(180,180,180);doc.setFontSize(8);doc.setFont('times','normal');doc.text('Estudio Contable Labaronnie · Trenque Lauquen, Buenos Aires',M,290);doc.text('Página '+i+' de '+fp,W-M,290,{align:'right'});}
+  const ahora=new Date();
+  doc.save('Honorarios_'+titulo.replace(/\s+/g,'_')+'_'+hd.replace(/\s/g,'_')+'.pdf');
+  showLoad(true);
+  await sb.from('envios').insert({cliente_ids:ids,grupo_id:modo==='grupo'&&grp?grp.id:null,fecha:ahora.toISOString().split('T')[0],hora:ahora.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}),total:totalRango,periodo_desde:desde,periodo_hasta:hasta});
+  await loadAll();showLoad(false);rEnvios();
+}
+
+// ---- MODAL CLIENTE ----
+let eCid=null,cTmp=[];
+function openCli(){eCid=null;cTmp=[{n:'IVA',i:0},{n:'Ingresos Brutos',i:0}];document.getElementById('cn').value='';document.getElementById('cd').value=ymFn(hoy);document.getElementById('ch').value='';document.getElementById('m-cli-t').textContent='Nuevo cliente';rConc();om('m-cli');}
+function editCli(id){const c=DATA.clientes.find(x=>x.id===id);if(!c)return;eCid=id;cTmp=c.conceptos.map(x=>({n:x.nombre,i:x.importe}));document.getElementById('cn').value=c.nombre;document.getElementById('cd').value=c.desde;document.getElementById('ch').value=c.hasta||'';document.getElementById('m-cli-t').textContent='Editar — '+c.nombre;rConc();om('m-cli');}
+function editDesde(){const id=dCid;cm('m-det');editCli(id);}
+function addConc(){cTmp.push({n:'',i:0});rConc();}
+function rConc(){document.getElementById('conc-cont').innerHTML=cTmp.map((x,i)=>`<div class="crow"><input type="text" value="${x.n}" placeholder="Concepto" oninput="cTmp[${i}].n=this.value"><input type="number" value="${x.i||''}" placeholder="$ 0" oninput="cTmp[${i}].i=parseFloat(this.value)||0;rT()"><button class="bdel" onclick="cTmp.splice(${i},1);rConc()"><i class="ti ti-trash"></i></button></div>`).join('');rT();}
+function rT(){const t=cTmp.reduce((a,x)=>a+(parseFloat(x.i)||0),0);document.getElementById('ct').textContent=fmt(t);}
+async function saveCli(){
+  const nombre=document.getElementById('cn').value.trim();const desde=document.getElementById('cd').value;const hasta=document.getElementById('ch').value||null;
+  if(!nombre||!desde){alert('Completá nombre y mes de inicio.');return;}
+  const conceptos=cTmp.filter(x=>x.n.trim()).map(x=>({nombre:x.n,importe:x.i}));const ht=conceptos.reduce((a,x)=>a+x.importe,0);
+  showLoad(true);
+  if(eCid){
+    const c=DATA.clientes.find(x=>x.id===eCid);
+    let ht2=c.historialTarifas||[];
+    if(c.honorarioTotal!==ht){const ma=ymFn(hoy);if(!ht2.find(h=>h.desde===ma))ht2=[...ht2,{desde:ma,total:ht,conceptos:[...conceptos]}];}
+    await sb.from('clientes').update({nombre,conceptos,honorario_total:ht,desde,hasta,historial_tarifas:ht2}).eq('id',eCid);
+  } else {
+    const ht2=[{desde,total:ht,conceptos:[...conceptos]}];
+    await sb.from('clientes').insert({nombre,conceptos,honorario_total:ht,desde,hasta,historial_tarifas:ht2});
+  }
+  await loadAll();showLoad(false);cm('m-cli');rCli();rDash();
+}
+
+// ---- DETALLE ----
+let dCid=null;
+function st(id,btn){document.querySelectorAll('.tp').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));document.getElementById(id).classList.add('active');if(btn)btn.classList.add('active');}
+function openDet(id){
+  dCid=id;const c=DATA.clientes.find(x=>x.id===id);if(!c)return;
+  document.getElementById('det-n').textContent=c.nombre;
+  const per=c.hasta?mL(c.desde)+' → '+mL(c.hasta):mL(c.desde)+' → hoy';const grp=getGrupo(id);
+  document.getElementById('det-s').textContent=per+' · '+fmt(c.honorarioTotal)+'/mes'+(grp?' · Grupo: '+grp.nombre:'');
+  st('t-mes',document.querySelector('.tab'));rDetRes(c);rDetMes(c);rDetPag(c);rDetConc(c);om('m-det');
+}
+function rDetRes(c){
+  const d=deuda(c),pend=mesesAd(c),tc=DATA.pagos.filter(p=>p.cid===c.id).reduce((a,p)=>a+p.imp,0),mt=getMeses(c).length;const ultP=ultimoPago(c);
+  document.getElementById('det-res').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
+    <div class="met"><div class="met-l">Deuda total</div><div class="met-v ${d>0?'r':'g'}">${d<0?'A favor<br>'+fmt(Math.abs(d)):fmt(Math.max(0,d))}</div></div>
+    <div class="met"><div class="met-l">Meses adeudados</div><div class="met-v ${pend.length>0?'r':''}">${pend.length} de ${mt}</div></div>
+    <div class="met"><div class="met-l">Total cobrado</div><div class="met-v g">${fmt(tc)}</div></div>
+    <div class="met"><div class="met-l">Último pago</div><div class="met-v" style="font-size:13px;line-height:1.4;">${ultP?fD(ultP.fecha)+'<br>'+fmt(ultP.imp)+(ultP.forma?'<br><span style="font-size:11px;color:#888;">'+ultP.forma+'</span>':''):'—'}</div></div>
+  </div>`;
+}
+function rDetMes(c){
+  const msTodos=getMeses(c),msAd2=mesesAd(c),adSet=new Set(msAd2.map(m=>m.mes));
+  let ef=`<div class="extra-inline"><div style="font-size:13px;font-weight:600;margin-bottom:12px;"><i class="ti ti-plus" style="font-size:13px;margin-right:4px;"></i>Agregar trabajo extra</div>
+    <div style="display:grid;grid-template-columns:150px 1fr 130px auto;gap:8px;align-items:end;">
+      <div><label style="font-size:11px;">Fecha exacta</label><input type="date" id="ei-f" value="${new Date().toISOString().split('T')[0]}"></div>
+      <div><label style="font-size:11px;">Descripción</label><input type="text" id="ei-d" placeholder="Ej: Declaración Jurada Ganancias 2025"></div>
+      <div><label style="font-size:11px;">Importe ($)</label><input type="number" id="ei-i" placeholder="0"></div>
+      <div style="padding-bottom:1px;"><button class="btn bp" style="padding:7px 12px;" onclick="saveExtraInline('${c.id}')"><i class="ti ti-check"></i> Guardar</button></div>
+    </div>
+    <div style="margin-top:8px;"><label style="font-size:11px;">Descripción extendida (opcional)</label><textarea id="ei-dl" rows="2" placeholder="Para descripciones más largas..." style="resize:vertical;min-height:52px;"></textarea></div>
+  </div>`;
+  let html=ef+`<div class="tw"><table><thead><tr><th>Período</th><th>Honorario base</th><th>Extras</th><th>Estado</th><th>Total</th></tr></thead><tbody>`;
+  for(const mes of [...msTodos].reverse()){
+    const t=tarifa(c,mes),exs=DATA.extras.filter(e=>e.cid===c.id&&e.fecha.startsWith(mes)),tot=t+exs.reduce((a,e)=>a+e.imp,0),ad=adSet.has(mes);
+    const exH=exs.length?exs.map(ex=>`<div style="font-size:11px;color:var(--amb);display:flex;justify-content:space-between;gap:6px;align-items:center;"><span title="${ex.desc}">${ex.desc.length>30?ex.desc.substring(0,30)+'…':ex.desc} <span style="color:#aaa;font-size:10px;">(${fD(ex.fecha)})</span></span><span style="white-space:nowrap">${fmt(ex.imp)} <button class="bdel" style="padding:1px 5px;font-size:10px;" onclick="delExtra('${ex.id}','${c.id}')"><i class="ti ti-x"></i></button></span></div>`).join(''):'<span style="font-size:12px;color:#888;">—</span>';
+    html+=`<tr><td style="font-weight:600">${mL(mes)}</td><td>${fmt(t)}</td><td>${exH}</td><td>${ad?'<span class="badge bd">Adeudado</span>':'<span class="badge bs">Pagado</span>'}</td><td style="font-weight:600;color:${ad?'var(--red)':'var(--green)'}">${fmt(tot)}</td></tr>`;
+  }
+  html+=`</tbody></table></div>`;document.getElementById('t-mes').innerHTML=html;
+}
+async function saveExtraInline(cid){
+  const fecha=document.getElementById('ei-f').value;let desc=document.getElementById('ei-d').value.trim();const dl=document.getElementById('ei-dl').value.trim();if(dl)desc=desc?(desc+'. '+dl):dl;const imp=parseFloat(document.getElementById('ei-i').value)||0;
+  if(!fecha||!desc||imp<=0){alert('Completá fecha, descripción e importe.');return;}
+  showLoad(true);
+  await sb.from('extras').insert({cliente_id:cid,fecha,importe:imp,descripcion:desc});
+  await loadAll();showLoad(false);const c=DATA.clientes.find(x=>x.id===cid);if(c){rDetRes(c);rDetMes(c);}rDash();
+}
+function rDetPag(c){
+  const pags=[...DATA.pagos.filter(p=>p.cid===c.id)].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  let html=`<div style="margin-bottom:10px;"><button class="btn bs2 bp" onclick="openPagoFor('${c.id}')"><i class="ti ti-plus"></i> Registrar pago</button></div>`;
+  if(!pags.length)html+=`<p style="font-size:13px;color:#888;padding:1rem 0;">Sin pagos.</p>`;
+  else{html+=`<div class="tw"><table><thead><tr><th>Fecha</th><th>Importe</th><th>Forma</th><th>Detalle</th><th></th></tr></thead><tbody>`;
+    html+=pags.map(p=>{const chR=chequeResumen(p);const det=chR?`<span style="font-size:11px;color:#5b2d91;">${chR}</span>`:p.nota?`<span style="font-size:12px;color:#888;">${p.nota}</span>`:'—';return`<tr><td style="font-size:12px;">${fD(p.fecha)}</td><td style="color:var(--green);font-weight:600">+ ${fmt(p.imp)}</td><td style="font-size:12px;">${p.forma||'—'}</td><td>${det}</td><td style="display:flex;gap:4px;"><button class="btn bs2" onclick="editPago('${p.id}')"><i class="ti ti-edit"></i></button><button class="bdel" onclick="delPago('${p.id}')"><i class="ti ti-trash"></i></button></td></tr>`;}).join('');
+    html+=`</tbody></table></div>`;}
+  document.getElementById('t-pag').innerHTML=html;
+}
+function rDetConc(c){
+  const hist=c.historialTarifas||[];
+  let html=`<div class="tw" style="margin-bottom:1rem"><table><thead><tr><th>Concepto</th><th>Importe</th></tr></thead><tbody>${c.conceptos.map(x=>`<tr><td>${x.nombre}</td><td style="font-weight:600">${fmt(x.importe)}</td></tr>`).join('')}<tr style="background:#f8f9fb"><td style="font-weight:600">Total mensual</td><td style="font-weight:600;color:var(--c2)">${fmt(c.honorarioTotal)}</td></tr></tbody></table></div>`;
+  if(hist.length>1){html+=`<div class="sec" style="margin-top:1rem">Historial de tarifas</div><div class="tw"><table><thead><tr><th>Desde</th><th>Total</th></tr></thead><tbody>${[...hist].sort((a,b)=>b.desde.localeCompare(a.desde)).map(h=>`<tr><td>${mL(h.desde)}</td><td style="font-weight:600">${fmt(h.total)}</td></tr>`).join('')}</tbody></table></div>`;}
+  document.getElementById('t-conc').innerHTML=html;
+}
+async function delExtra(eid,cid){if(!confirm('¿Eliminar este extra?'))return;showLoad(true);await sb.from('extras').delete().eq('id',eid);await loadAll();showLoad(false);const c=DATA.clientes.find(x=>x.id===cid);if(c){rDetRes(c);rDetMes(c);}rDash();}
+
+// ---- HISTORIAL ----
+function abrirHistorial(cid){
+  const c=DATA.clientes.find(x=>x.id===cid);if(!c)return;
+  document.getElementById('hist-title').textContent='Historial — '+c.nombre;
+  const msTodos=getMeses(c);const pagosC=[...DATA.pagos.filter(p=>p.cid===cid)].sort((a,b)=>a.fecha.localeCompare(b.fecha));const extrasC=DATA.extras.filter(e=>e.cid===cid);
+  const tc=pagosC.reduce((a,p)=>a+p.imp,0);const tb=msTodos.reduce((a,m)=>a+tarifa(c,m),0);const te=extrasC.reduce((a,e)=>a+e.imp,0);const sd=deuda(c);
+  let html=`<div class="hist-header"><div><div style="font-size:17px;font-weight:600;">${c.nombre}</div><div style="font-size:12px;opacity:.7;margin-top:3px;">${mL(c.desde)} → ${c.hasta?mL(c.hasta):'hoy'} · ${fmt(c.honorarioTotal)}/mes</div></div><div style="text-align:right;font-size:13px;opacity:.9;">${msTodos.length} meses · ${pagosC.length} pagos</div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:1.5rem;">
+    <div class="met"><div class="met-l">Total facturado</div><div class="met-v" style="font-size:16px;">${fmt(tb+te)}</div></div>
+    <div class="met"><div class="met-l">Total cobrado</div><div class="met-v g" style="font-size:16px;">${fmt(tc)}</div></div>
+    <div class="met"><div class="met-l">Saldo actual</div><div class="met-v ${sd>0?'r':'g'}" style="font-size:16px;">${sd<0?'A favor '+fmt(Math.abs(sd)):fmt(Math.max(0,sd))}</div></div>
+  </div>`;
+  let eventos=[];
+  for(const m of msTodos){const t=tarifa(c,m);const exs=DATA.extras.filter(e=>e.cid===cid&&e.fecha.startsWith(m));const tot=t+exs.reduce((a,e)=>a+e.imp,0);eventos.push({tipo:'mes',fecha:m+'-01',mes:m,tarifa:t,extras:exs,total:tot});}
+  for(const p of pagosC)eventos.push({tipo:'pago',fecha:p.fecha,pago:p});
+  eventos.sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  html+=`<div class="sec">Cronología completa</div><div>`;
+  for(const ev of eventos){
+    if(ev.tipo==='mes'){const exsH=ev.extras.length?ev.extras.map(ex=>`<div style="font-size:11px;color:var(--amb);margin-top:3px;">+ ${ex.desc} — ${fmt(ex.imp)} <span style="color:#aaa;">(${fD(ex.fecha)})</span></div>`).join(''):'';html+=`<div class="timeline-item"><div class="tl-date">${mL(ev.mes).split(' ')[0]}<br><strong>${mL(ev.mes).split(' ')[1]}</strong></div><div class="tl-body"><div class="tl-card"><div style="display:flex;justify-content:space-between;"><span style="font-weight:600">${mL(ev.mes)}</span><span style="font-weight:600">${fmt(ev.total)}</span></div><div style="font-size:12px;color:#888;margin-top:2px;">Honorario base: ${fmt(ev.tarifa)}</div>${exsH}</div></div></div>`;}
+    else{const p=ev.pago;const chR=chequeResumen(p);html+=`<div class="timeline-item tl-pago"><div class="tl-date" style="color:var(--green);">${fD(p.fecha).split('/').slice(0,2).join('/')}<br><strong>${fD(p.fecha).split('/')[2]}</strong></div><div class="tl-body"><div class="tl-card" style="border-left:3px solid var(--green);background:var(--gbg);"><div style="display:flex;justify-content:space-between;"><span style="font-weight:600;color:var(--green)">Pago recibido</span><span style="font-weight:600;color:var(--green)">+ ${fmt(p.imp)}</span></div><div style="font-size:12px;color:#888;margin-top:2px;">${p.forma||''}${p.nota?' · '+p.nota:''}</div>${chR?`<div style="font-size:11px;color:#5b2d91;margin-top:2px;">${chR}</div>`:''}</div></div></div>`;}
+  }
+  html+=`</div>`;document.getElementById('hist-body').innerHTML=html;om('m-hist');
+}
+
+// ---- PAGOS CRUD ----
+let ePid=null;
+function openPago(){
+  ePid=null;document.getElementById('m-pago-t').textContent='Registrar pago';
+  document.getElementById('pg-cli').innerHTML='<option value="">— Seleccionar —</option>'+[...DATA.clientes].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+  document.getElementById('pg-f').value=new Date().toISOString().split('T')[0];
+  document.getElementById('pg-i').value='';document.getElementById('pg-n').value='';document.getElementById('pg-forma').value='Efectivo';
+  document.getElementById('cheque-datos').style.display='none';
+  ['ch-num','ch-vto','ch-banco','ch-nombre','ch-cuenta','ch-obs'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pg-info').innerHTML='';document.getElementById('btn-pg').textContent='Registrar pago';om('m-pago');
+}
+function openPagoFor(cid){openPago();document.getElementById('pg-cli').value=cid;rDeuda();}
+function editPago(pid){
+  const p=DATA.pagos.find(x=>x.id===pid);if(!p)return;ePid=pid;
+  document.getElementById('m-pago-t').textContent='Editar pago';
+  document.getElementById('pg-cli').innerHTML='<option value="">— Seleccionar —</option>'+[...DATA.clientes].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(c=>`<option value="${c.id}"${c.id===p.cid?' selected':''}>${c.nombre}</option>`).join('');
+  document.getElementById('pg-f').value=p.fecha;document.getElementById('pg-i').value=p.imp;document.getElementById('pg-n').value=p.nota||'';document.getElementById('pg-forma').value=p.forma||'Efectivo';
+  const ch=p.cheque||{};['num','vto','banco','nombre','cuenta','obs'].forEach(k=>document.getElementById('ch-'+k).value=ch[k]||'');
+  document.getElementById('cheque-datos').style.display=p.forma==='Cheque'?'block':'none';
+  document.getElementById('btn-pg').textContent='Guardar cambios';rDeuda();om('m-pago');
+}
+async function delPago(pid){if(!confirm('¿Eliminar este pago?'))return;showLoad(true);await sb.from('pagos').delete().eq('id',pid);await loadAll();showLoad(false);rPag();rDash();if(dCid){const c=DATA.clientes.find(x=>x.id===dCid);if(c){rDetRes(c);rDetMes(c);rDetPag(c);}}}
+function rDeuda(){const id=document.getElementById('pg-cli').value;if(!id){document.getElementById('pg-info').innerHTML='';return;}const c=DATA.clientes.find(x=>x.id===id);const d=deuda(c);document.getElementById('pg-info').innerHTML=`<div class="ali">${d>0?'Deuda actual: <strong>'+fmt(d)+'</strong>':'Saldo a favor: <strong>'+fmt(Math.abs(d))+'</strong>'}</div>`;}
+function rSaldo(){const id=document.getElementById('pg-cli').value;if(!id)return;const c=DATA.clientes.find(x=>x.id===id);const d=deuda(c),p2=parseFloat(document.getElementById('pg-i').value)||0,n=d-p2;document.getElementById('pg-info').innerHTML=`<div class="ali">Deuda actual: <strong>${fmt(d)}</strong> → Tras el pago: <strong style="color:${n<=0?'var(--green)':'var(--red)'}">${n<=0?'Saldo a favor '+fmt(Math.abs(n)):fmt(n)}</strong></div>`;}
+async function savePago(){
+  const cid=document.getElementById('pg-cli').value;const fecha=document.getElementById('pg-f').value;const imp=parseFloat(document.getElementById('pg-i').value)||0;const nota=document.getElementById('pg-n').value.trim();const forma=document.getElementById('pg-forma').value;
+  if(!cid||!fecha||imp<=0){alert('Completá los campos obligatorios.');return;}
+  let cheque=null;if(forma==='Cheque'){const ch={num:document.getElementById('ch-num').value.trim()||null,vto:document.getElementById('ch-vto').value||null,banco:document.getElementById('ch-banco').value.trim()||null,nombre:document.getElementById('ch-nombre').value.trim()||null,cuenta:document.getElementById('ch-cuenta').value.trim()||null,obs:document.getElementById('ch-obs').value.trim()||null};if(Object.values(ch).some(v=>v))cheque=ch;}
+  showLoad(true);
+  if(ePid){await sb.from('pagos').update({cliente_id:cid,fecha,importe:imp,nota,forma,cheque}).eq('id',ePid);}
+  else{await sb.from('pagos').insert({cliente_id:cid,fecha,importe:imp,nota,forma,cheque});}
+  await loadAll();showLoad(false);cm('m-pago');rPag();rDash();if(dCid){const c=DATA.clientes.find(x=>x.id===dCid);if(c){rDetRes(c);rDetMes(c);rDetPag(c);}}
+}
+
+// ---- GRUPOS ----
+function openGrupo(){
+  document.getElementById('grp-n').value='';
+  document.getElementById('grp-checks').innerHTML=[...DATA.clientes].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')).map(c=>`<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f8f9fb;border-radius:8px;cursor:pointer;font-size:13px;font-weight:400;"><input type="checkbox" value="${c.id}" onchange="rGrpPreview()" style="width:auto"> ${c.nombre}<span style="margin-left:auto;font-size:12px;color:#888;">${fmt(Math.max(0,deuda(c)))}</span></label>`).join('');
+  document.getElementById('grp-preview').innerHTML='';om('m-grupo');
+}
+function rGrpPreview(){const ids=[...document.querySelectorAll('#grp-checks input:checked')].map(c=>c.value);document.getElementById('grp-preview').innerHTML=ids.length<2?'':`<div class="ali"><strong>Deuda combinada: ${fmt(ids.reduce((a,id)=>{const c=DATA.clientes.find(x=>x.id===id);return a+Math.max(0,c?deuda(c):0);},0))}</strong></div>`;}
+async function saveGrupo(){
+  const nombre=document.getElementById('grp-n').value.trim();const ids=[...document.querySelectorAll('#grp-checks input:checked')].map(c=>c.value);
+  if(!nombre||ids.length<2){alert('Completá el nombre y seleccioná al menos 2 clientes.');return;}
+  showLoad(true);
+  for(const id of ids){const g=DATA.grupos.find(x=>x.miembros.includes(id));if(g)await sb.from('grupos').delete().eq('id',g.id);}
+  await sb.from('grupos').insert({nombre,miembros:ids});
+  await loadAll();showLoad(false);cm('m-grupo');rCli();
+}
+
+// ---- INIT ----
+document.getElementById('tf').textContent=hoy.toLocaleDateString('es-AR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+sb.auth.getSession().then(({data:{session}})=>{
+  if(session){initApp();}
+  else{document.getElementById('login-screen').style.display='flex';}
+});
+sb.auth.onAuthStateChange((event,session)=>{
+  if(event==='SIGNED_OUT'){document.getElementById('main-app').style.display='none';document.getElementById('login-screen').style.display='flex';}
+});
+</script>
+</body>
+</html>
