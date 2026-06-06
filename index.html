@@ -177,12 +177,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--c2);}
       <input type="text" placeholder="Buscar cliente..." id="sp2" oninput="rPag()">
       <button class="btn bp" onclick="openPago()"><i class="ti ti-plus"></i> Registrar pago</button>
     </div>
-    <div style="display:flex;gap:10px;margin-bottom:1rem;">
-      <button class="btn" id="fil-todos" onclick="setFiltro('todos')" style="border-color:var(--c2);color:var(--c2);">Todos</button>
-      <button class="btn" id="fil-pagos" onclick="setFiltro('pagos')">Solo pagos</button>
-      <button class="btn" id="fil-extras" onclick="setFiltro('extras')">Solo extras</button>
-    </div>
-    <div class="tw"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Importe</th><th>Tipo</th><th>Detalle</th><th></th></tr></thead><tbody id="pag-t"></tbody></table></div>
+    <div class="tw"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Importe</th><th>Forma</th><th>Detalle</th><th></th></tr></thead><tbody id="pag-t"></tbody></table></div>
   </div>
 
   <div id="page-documentos" class="page">
@@ -245,6 +240,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--c2);}
     <div style="display:flex;gap:6px;">
       <button class="btn bs2 bp" onclick="abrirHistorial(dCid)"><i class="ti ti-history"></i> Historial</button>
       <button class="btn bs2" onclick="editDesde()"><i class="ti ti-edit"></i> Editar</button>
+      <button class="btn bs2" style="background:var(--rbg);color:var(--red);border-color:transparent;" onclick="delCli(dCid)"><i class="ti ti-trash"></i> Borrar</button>
       <button class="btn bs2" onclick="cm('m-det')"><i class="ti ti-x"></i></button>
     </div>
   </div>
@@ -452,48 +448,25 @@ function rCli(){
   tb.innerHTML=lista.map(c=>{
     const d=deuda(c);const per=c.hasta?mL(c.desde)+' → '+mL(c.hasta):mL(c.desde)+' → hoy';
     const grp=getGrupo(c.id);const grpT=grp?`<span class="grupo-pill"><i class="ti ti-link" style="font-size:10px"></i> ${grp.nombre}</span>`:'—';
-    return`<tr><td><strong style="font-weight:600">${c.nombre}</strong></td><td>${fmt(c.honorarioTotal)}/mes</td><td style="font-size:12px;color:#888;">${per}</td><td style="font-weight:600;color:${d>0?'var(--red)':d<0?'var(--green)':'inherit'}">${d<0?'A favor '+fmt(Math.abs(d)):fmt(Math.max(0,d))}</td><td>${grpT}</td><td style="display:flex;gap:5px;"><button class="btn bs2" onclick="openDet('${c.id}')"><i class="ti ti-eye"></i> Ver</button><button class="btn bs2" onclick="editCli('${c.id}')"><i class="ti ti-edit"></i></button></td></tr>`;
+    return`<tr><td><strong style="font-weight:600">${c.nombre}</strong></td><td>${fmt(c.honorarioTotal)}/mes</td><td style="font-size:12px;color:#888;">${per}</td><td style="font-weight:600;color:${d>0?'var(--red)':d<0?'var(--green)':'inherit'}">${d<0?'A favor '+fmt(Math.abs(d)):fmt(Math.max(0,d))}</td><td>${grpT}</td><td style="display:flex;gap:5px;"><button class="btn bs2" onclick="openDet('${c.id}')"><i class="ti ti-eye"></i> Ver</button><button class="btn bs2" onclick="editCli('${c.id}')"><i class="ti ti-edit"></i></button><button class="bdel" onclick="delCli('${c.id}')"><i class="ti ti-trash"></i></button></td></tr>`;
   }).join('');
 }
 
 // ---- PAGOS ----
-let filtroActual='todos';
-function setFiltro(f){
-  filtroActual=f;
-  ['todos','pagos','extras'].forEach(x=>{
-    const btn=document.getElementById('fil-'+x);
-    btn.style.borderColor=x===f?'var(--c2)':'#ccc';
-    btn.style.color=x===f?'var(--c2)':'#1a1a1a';
-    btn.style.background=x===f?'var(--c3)':'#fff';
-  });
-  rPag();
-}
 function rPag(){
   const q=(document.getElementById('sp2').value||'').toLowerCase();
+  const rows=[...DATA.pagos].sort((a,b)=>b.fecha.localeCompare(a.fecha));
   const tb=document.getElementById('pag-t');
-  let rows=[];
-  if(filtroActual==='todos'||filtroActual==='pagos'){
-    rows=[...rows,...DATA.pagos.map(p=>({...p,_tipo:'pago'}))];
-  }
-  if(filtroActual==='todos'||filtroActual==='extras'){
-    rows=[...rows,...DATA.extras.map(e=>({...e,_tipo:'extra'}))];
-  }
-  rows.sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:2rem;color:#888;">Sin registros.</td></tr>';return;}
-  const f=rows.filter(r=>{const c=DATA.clientes.find(x=>x.id===(r.cid));return!q||(c&&c.nombre.toLowerCase().includes(q));});
+  if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:2rem;color:#888;">Sin pagos.</td></tr>';return;}
+  const f=rows.filter(p=>{const c=DATA.clientes.find(x=>x.id===p.cid);return!q||(c&&c.nombre.toLowerCase().includes(q));});
   if(!f.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:2rem;color:#888;">Sin resultados.</td></tr>';return;}
-  tb.innerHTML=f.map(r=>{
-    const c=DATA.clientes.find(x=>x.id===r.cid);
-    if(r._tipo==='pago'){
-      const ft=r.forma==='Cheque'?'<span class="badge bch">Cheque</span>':r.forma==='Transferencia'?'<span class="badge bi">Transf.</span>':'<span class="badge bs">'+(r.forma||'Efectivo')+'</span>';
-      const det=chequeResumen(r)?`<span style="font-size:11px;color:#5b2d91;">${chequeResumen(r)}</span>`:r.nota?`<span style="font-size:12px;color:#888;">${r.nota}</span>`:'—';
-      return`<tr><td style="font-size:12px;color:#888;">${fD(r.fecha)}</td><td>${c?c.nombre:'—'}</td><td style="font-weight:600;color:var(--green)">+ ${fmt(r.imp)}</td><td>${ft}</td><td>${det}</td><td style="display:flex;gap:5px;"><button class="btn bs2" onclick="editPago('${r.id}')"><i class="ti ti-edit"></i></button><button class="bdel" onclick="delPago('${r.id}')"><i class="ti ti-trash"></i></button></td></tr>`;
-    } else {
-      return`<tr style="background:#fffdf5;"><td style="font-size:12px;color:#888;">${fD(r.fecha)}</td><td>${c?c.nombre:'—'}</td><td style="font-weight:600;color:var(--amb)">+ ${fmt(r.imp)}</td><td><span class="badge bw">Extra</span></td><td style="font-size:13px;color:#7a5200;">${r.desc||'—'}</td><td><button class="bdel" onclick="delExtraLista('${r.id}')"><i class="ti ti-trash"></i></button></td></tr>`;
-    }
+  tb.innerHTML=f.map(p=>{
+    const c=DATA.clientes.find(x=>x.id===p.cid);
+    const ft=p.forma==='Cheque'?'<span class="badge bch">Cheque</span>':p.forma==='Transferencia'?'<span class="badge bi">Transf.</span>':'<span class="badge bs">'+(p.forma||'Efectivo')+'</span>';
+    const det=chequeResumen(p)?`<span style="font-size:11px;color:#5b2d91;">${chequeResumen(p)}</span>`:p.nota?`<span style="font-size:12px;color:#888;">${p.nota}</span>`:'—';
+    return`<tr><td style="font-size:12px;color:#888;">${fD(p.fecha)}</td><td>${c?c.nombre:'—'}</td><td style="font-weight:600;color:var(--green)">+ ${fmt(p.imp)}</td><td>${ft}</td><td>${det}</td><td style="display:flex;gap:5px;"><button class="btn bs2" onclick="editPago('${p.id}')"><i class="ti ti-edit"></i></button><button class="bdel" onclick="delPago('${p.id}')"><i class="ti ti-trash"></i></button></td></tr>`;
   }).join('');
 }
-async function delExtraLista(eid){if(!confirm('¿Eliminar este extra?'))return;showLoad(true);await sb.from('extras').delete().eq('id',eid);await loadAll();showLoad(false);rPag();rDash();}
 
 // ---- DOCUMENTOS ----
 function rDocs(){
@@ -559,8 +532,27 @@ function buildDocData(ids,desde,hasta){
   const clientes=ids.map(id=>DATA.clientes.find(c=>c.id===id)).filter(Boolean);
   let secciones=[],totalRango=0;
   for(const cli of clientes){
-    const pend=mesesAdRango(cli,desde,hasta);
-    const extH=DATA.extras.filter(e=>String(e.cid)===String(cli.id)&&e.fecha>=desde+'-01'&&e.fecha<=hasta+'-31'&&!pend.find(mp=>mismoMes(e.fecha,mp.mes)));
+    // Obtener todos los extras del cliente dentro del rango
+    const todosExtrasRango=DATA.extras.filter(e=>String(e.cid)===String(cli.id)&&e.fecha>=desde+'-01'&&e.fecha<=hasta+'-31');
+    // Calcular meses adeudados con sus extras
+    const msTodos=getMeses(cli).filter(m=>m>=desde&&m<=hasta);
+    let pr=DATA.pagos.filter(p=>String(p.cid)===String(cli.id)).reduce((a,p)=>a+p.imp,0);
+    const msAntes=getMeses(cli).filter(m=>m<desde);
+    for(const m of msAntes){
+      const t=tarifa(cli,m);
+      const ex=DATA.extras.filter(e=>String(e.cid)===String(cli.id)&&mismoMes(e.fecha,m));
+      const tot=t+ex.reduce((a,e)=>a+e.imp,0);
+      if(pr>=tot)pr-=tot;else pr=0;
+    }
+    let pend=[];
+    for(const m of msTodos){
+      const t=tarifa(cli,m);
+      const ex=todosExtrasRango.filter(e=>mismoMes(e.fecha,m));
+      const tot=t+ex.reduce((a,e)=>a+e.imp,0);
+      if(pr>=tot)pr-=tot;else{pend.push({mes:m,tarifa:t,extras:ex,total:tot});pr=0;}
+    }
+    // Extras que no cayeron en ningún mes pendiente
+    const extH=todosExtrasRango.filter(e=>!pend.find(mp=>mismoMes(e.fecha,mp.mes)));
     const subtotalRango=pend.reduce((a,m)=>a+m.total,0)+extH.reduce((a,e)=>a+e.imp,0);
     const ultPago=ultimoPago(cli);const saldoTotal=deuda(cli);
     totalRango+=subtotalRango;
@@ -679,6 +671,17 @@ async function saveCli(){
   await loadAll();showLoad(false);cm('m-cli');rCli();rDash();
 }
 
+async function delCli(id){
+  const c=DATA.clientes.find(x=>x.id===id);if(!c)return;
+  if(!confirm('¿Borrar el cliente "'+c.nombre+'" y todos sus pagos, extras e historial? Esta acción no se puede deshacer.'))return;
+  showLoad(true);
+  await sb.from('pagos').delete().eq('cliente_id',id);
+  await sb.from('extras').delete().eq('cliente_id',id);
+  await sb.from('clientes').delete().eq('id',id);
+  await loadAll();showLoad(false);
+  cm('m-det');rCli();rDash();
+}
+
 // ---- DETALLE ----
 let dCid=null;
 function st(id,btn){document.querySelectorAll('.tp').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));document.getElementById(id).classList.add('active');if(btn)btn.classList.add('active');}
@@ -700,22 +703,19 @@ function rDetRes(c){
 }
 function rDetMes(c){
   const msTodos=getMeses(c),msAd2=mesesAd(c),adSet=new Set(msAd2.map(m=>m.mes));
-  let ef=`<div class="extra-inline"><div style="font-size:13px;font-weight:600;margin-bottom:12px;"><i class="ti ti-plus" style="font-size:13px;margin-right:4px;"></i>Agregar trabajo extra</div>
-    <div style="display:grid;grid-template-columns:150px 1fr 130px auto;gap:8px;align-items:end;">
-      <div><label style="font-size:11px;">Fecha exacta</label><input type="date" id="ei-f" value="${new Date().toISOString().split('T')[0]}"></div>
-      <div><label style="font-size:11px;">Descripción</label><input type="text" id="ei-d" placeholder="Ej: Declaración Jurada Ganancias 2025"></div>
-      <div><label style="font-size:11px;">Importe ($)</label><input type="number" id="ei-i" placeholder="0"></div>
-      <div style="padding-bottom:1px;"><button class="btn bp" style="padding:7px 12px;" onclick="saveExtraInline('${c.id}')"><i class="ti ti-check"></i> Guardar</button></div>
-    </div>
-    <div style="margin-top:8px;"><label style="font-size:11px;">Descripción extendida (opcional)</label><textarea id="ei-dl" rows="2" placeholder="Para descripciones más largas..." style="resize:vertical;min-height:52px;"></textarea></div>
-  </div>`;
-  let html=ef+`<div class="tw"><table><thead><tr><th>Período</th><th>Honorario base</th><th>Extras</th><th>Estado</th><th>Total</th></tr></thead><tbody>`;
+  const todosExtras=DATA.extras.filter(e=>String(e.cid)===String(c.id)).sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  let ef=`<div class="extra-inline"><div style="font-size:13px;font-weight:600;margin-bottom:12px;"><i class="ti ti-plus" style="font-size:13px;margin-right:4px;"></i>Agregar trabajo extra</div><div style="display:grid;grid-template-columns:150px 1fr 130px auto;gap:8px;align-items:end;"><div><label style="font-size:11px;">Fecha exacta</label><input type="date" id="ei-f" value="${new Date().toISOString().split('T')[0]}"></div><div><label style="font-size:11px;">Descripción</label><input type="text" id="ei-d" placeholder="Ej: Declaración Jurada Ganancias 2025"></div><div><label style="font-size:11px;">Importe ($)</label><input type="number" id="ei-i" placeholder="0"></div><div style="padding-bottom:1px;"><button class="btn bp" style="padding:7px 12px;" onclick="saveExtraInline('${c.id}')"><i class="ti ti-check"></i> Guardar</button></div></div><div style="margin-top:8px;"><label style="font-size:11px;">Descripción extendida (opcional)</label><textarea id="ei-dl" rows="2" placeholder="Para descripciones más largas..." style="resize:vertical;min-height:52px;"></textarea></div></div>`;
+  let html=ef+`<div class="tw"><table><thead><tr><th>Período</th><th>Honorario base</th><th>Estado</th><th>Total</th></tr></thead><tbody>`;
   for(const mes of [...msTodos].reverse()){
-    const t=tarifa(c,mes),exs=DATA.extras.filter(e=>String(e.cid)===String(c.id)&&mismoMes(e.fecha,mes)),tot=t+exs.reduce((a,e)=>a+e.imp,0),ad=adSet.has(mes);
-    const exH=exs.length?`<div style="display:flex;flex-direction:column;gap:4px;">`+exs.map(ex=>`<div style="font-size:12px;color:var(--amb);display:flex;justify-content:space-between;gap:6px;align-items:center;background:#fffdf5;border-radius:4px;padding:3px 6px;"><span title="${ex.desc}"><strong>${fmt(ex.imp)}</strong> — ${ex.desc.length>35?ex.desc.substring(0,35)+'…':ex.desc} <span style="color:#aaa;font-size:10px;">(${fD(ex.fecha)})</span></span><button class="bdel" style="padding:1px 5px;font-size:10px;flex-shrink:0;" onclick="delExtra('${ex.id}','${c.id}')"><i class="ti ti-x"></i></button></div>`).join('')+`</div>`:'<span style="font-size:12px;color:#888;">—</span>';
-    html+=`<tr><td style="font-weight:600">${mL(mes)}</td><td>${fmt(t)}</td><td>${exH}</td><td>${ad?'<span class="badge bd">Adeudado</span>':'<span class="badge bs">Pagado</span>'}</td><td style="font-weight:600;color:${ad?'var(--red)':'var(--green)'}">${fmt(tot)}</td></tr>`;
+    const t=tarifa(c,mes);
+    const exsDelMes=todosExtras.filter(e=>mismoMes(e.fecha,mes));
+    const tot=t+exsDelMes.reduce((a,e)=>a+e.imp,0);
+    const ad=adSet.has(mes);
+    html+=`<tr><td style="font-weight:600">${mL(mes)}</td><td>${fmt(t)}</td><td>${ad?"<span class=\"badge bd\">Adeudado</span>":"<span class=\"badge bs\">Pagado</span>"}</td><td style="font-weight:600;color:${ad?"var(--red)":"var(--green)"}">${fmt(tot)}</td></tr>`;
+    if(exsDelMes.length){for(const ex of exsDelMes){html+=`<tr style="background:#fffdf5;"><td colspan="2" style="padding-left:24px;font-size:12px;color:var(--amb);"><i class="ti ti-star" style="font-size:11px;"></i> <strong>${fD(ex.fecha)}</strong> — ${ex.desc}</td><td><span class="badge bw">Extra</span></td><td style="font-weight:600;color:var(--amb);">${fmt(ex.imp)} <button class="bdel" style="padding:1px 6px;font-size:11px;margin-left:4px;" onclick="delExtra('${ex.id}','${c.id}')"><i class="ti ti-trash"></i></button></td></tr>`;}}
   }
-  html+=`</tbody></table></div>`;document.getElementById('t-mes').innerHTML=html;
+  html+=`</tbody></table></div>`;
+  document.getElementById("t-mes").innerHTML=html;
 }
 async function saveExtraInline(cid){
   const fecha=document.getElementById('ei-f').value;let desc=document.getElementById('ei-d').value.trim();const dl=document.getElementById('ei-dl').value.trim();if(dl)desc=desc?(desc+'. '+dl):dl;const imp=parseFloat(document.getElementById('ei-i').value)||0;
