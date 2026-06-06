@@ -177,7 +177,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--c2);}
       <input type="text" placeholder="Buscar cliente..." id="sp2" oninput="rPag()">
       <button class="btn bp" onclick="openPago()"><i class="ti ti-plus"></i> Registrar pago</button>
     </div>
-    <div class="tw"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Importe</th><th>Forma</th><th>Detalle</th><th></th></tr></thead><tbody id="pag-t"></tbody></table></div>
+    <div style="display:flex;gap:10px;margin-bottom:1rem;">
+      <button class="btn" id="fil-todos" onclick="setFiltro('todos')" style="border-color:var(--c2);color:var(--c2);">Todos</button>
+      <button class="btn" id="fil-pagos" onclick="setFiltro('pagos')">Solo pagos</button>
+      <button class="btn" id="fil-extras" onclick="setFiltro('extras')">Solo extras</button>
+    </div>
+    <div class="tw"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Importe</th><th>Tipo</th><th>Detalle</th><th></th></tr></thead><tbody id="pag-t"></tbody></table></div>
   </div>
 
   <div id="page-documentos" class="page">
@@ -344,20 +349,21 @@ function tarifa(cli,mes){
 function getMeses(cli){const fin=cli.hasta||ymFn(hoy);let ms=[],m=cli.desde||ymFn(hoy);while(m<=fin){ms.push(m);m=sig(m);}return ms;}
 function deuda(cli){
   const ms=getMeses(cli);
-  return ms.reduce((a,m)=>a+tarifa(cli,m),0)+DATA.extras.filter(e=>e.cid===cli.id).reduce((a,e)=>a+e.imp,0)-DATA.pagos.filter(p=>p.cid===cli.id).reduce((a,p)=>a+p.imp,0);
+  return ms.reduce((a,m)=>a+tarifa(cli,m),0)+DATA.extras.filter(e=>String(e.cid)===String(cli.id)).reduce((a,e)=>a+e.imp,0)-DATA.pagos.filter(p=>String(p.cid)===String(cli.id)).reduce((a,p)=>a+p.imp,0);
 }
+function mismoMes(fecha,mes){return String(fecha||'').substring(0,7)===mes;}
 function mesesAdRango(cli,desde,hasta){
   const msTodos=getMeses(cli).filter(m=>m>=desde&&m<=hasta);
-  let pr=DATA.pagos.filter(p=>p.cid===cli.id).reduce((a,p)=>a+p.imp,0);
+  let pr=DATA.pagos.filter(p=>String(p.cid)===String(cli.id)).reduce((a,p)=>a+p.imp,0);
   const msAntes=getMeses(cli).filter(m=>m<desde);
-  for(const m of msAntes){const t=tarifa(cli,m);const ex=DATA.extras.filter(e=>e.cid===cli.id&&e.fecha.startsWith(m));const tot=t+ex.reduce((a,e)=>a+e.imp,0);if(pr>=tot)pr-=tot;else pr=0;}
+  for(const m of msAntes){const t=tarifa(cli,m);const ex=DATA.extras.filter(e=>String(e.cid)===String(cli.id)&&mismoMes(e.fecha,m));const tot=t+ex.reduce((a,e)=>a+e.imp,0);if(pr>=tot)pr-=tot;else pr=0;}
   let pend=[];
-  for(const m of msTodos){const t=tarifa(cli,m);const ex=DATA.extras.filter(e=>e.cid===cli.id&&e.fecha.startsWith(m));const tot=t+ex.reduce((a,e)=>a+e.imp,0);if(pr>=tot)pr-=tot;else{pend.push({mes:m,tarifa:t,extras:ex,total:tot});pr=0;}}
+  for(const m of msTodos){const t=tarifa(cli,m);const ex=DATA.extras.filter(e=>String(e.cid)===String(cli.id)&&mismoMes(e.fecha,m));const tot=t+ex.reduce((a,e)=>a+e.imp,0);if(pr>=tot)pr-=tot;else{pend.push({mes:m,tarifa:t,extras:ex,total:tot});pr=0;}}
   return pend;
 }
 function mesesAd(cli){return mesesAdRango(cli,cli.desde||ymFn(hoy),cli.hasta||ymFn(hoy));}
-function ultimoPago(cli){return[...DATA.pagos.filter(p=>p.cid===cli.id)].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0]||null;}
-function getGrupo(cid){return DATA.grupos.find(g=>g.miembros.includes(cid));}
+function ultimoPago(cli){return[...DATA.pagos.filter(p=>String(p.cid)===String(cli.id))].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0]||null;}
+function getGrupo(cid){return DATA.grupos.find(g=>g.miembros.map(String).includes(String(cid)));}
 function toggleCheque(){document.getElementById('cheque-datos').style.display=document.getElementById('pg-forma').value==='Cheque'?'block':'none';}
 function chequeResumen(p){if(p.forma!=='Cheque'||!p.cheque)return'';const ch=p.cheque;const pts=[];if(ch.num)pts.push('N° '+ch.num);if(ch.vto)pts.push('Vto '+fD(ch.vto));if(ch.banco)pts.push(ch.banco);if(ch.nombre)pts.push('A nombre: '+ch.nombre);if(ch.obs)pts.push(ch.obs);return pts.join(' · ');}
 
@@ -451,20 +457,43 @@ function rCli(){
 }
 
 // ---- PAGOS ----
+let filtroActual='todos';
+function setFiltro(f){
+  filtroActual=f;
+  ['todos','pagos','extras'].forEach(x=>{
+    const btn=document.getElementById('fil-'+x);
+    btn.style.borderColor=x===f?'var(--c2)':'#ccc';
+    btn.style.color=x===f?'var(--c2)':'#1a1a1a';
+    btn.style.background=x===f?'var(--c3)':'#fff';
+  });
+  rPag();
+}
 function rPag(){
   const q=(document.getElementById('sp2').value||'').toLowerCase();
-  const rows=[...DATA.pagos].sort((a,b)=>b.fecha.localeCompare(a.fecha));
   const tb=document.getElementById('pag-t');
-  if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:2rem;color:#888;">Sin pagos.</td></tr>';return;}
-  const f=rows.filter(p=>{const c=DATA.clientes.find(x=>x.id===p.cid);return!q||(c&&c.nombre.toLowerCase().includes(q));});
+  let rows=[];
+  if(filtroActual==='todos'||filtroActual==='pagos'){
+    rows=[...rows,...DATA.pagos.map(p=>({...p,_tipo:'pago'}))];
+  }
+  if(filtroActual==='todos'||filtroActual==='extras'){
+    rows=[...rows,...DATA.extras.map(e=>({...e,_tipo:'extra'}))];
+  }
+  rows.sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  if(!rows.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:2rem;color:#888;">Sin registros.</td></tr>';return;}
+  const f=rows.filter(r=>{const c=DATA.clientes.find(x=>x.id===(r.cid));return!q||(c&&c.nombre.toLowerCase().includes(q));});
   if(!f.length){tb.innerHTML='<tr><td colspan="6" style="text-align:center;padding:2rem;color:#888;">Sin resultados.</td></tr>';return;}
-  tb.innerHTML=f.map(p=>{
-    const c=DATA.clientes.find(x=>x.id===p.cid);
-    const ft=p.forma==='Cheque'?'<span class="badge bch">Cheque</span>':p.forma==='Transferencia'?'<span class="badge bi">Transf.</span>':'<span class="badge bs">'+(p.forma||'Efectivo')+'</span>';
-    const det=chequeResumen(p)?`<span style="font-size:11px;color:#5b2d91;">${chequeResumen(p)}</span>`:p.nota?`<span style="font-size:12px;color:#888;">${p.nota}</span>`:'—';
-    return`<tr><td style="font-size:12px;color:#888;">${fD(p.fecha)}</td><td>${c?c.nombre:'—'}</td><td style="font-weight:600;color:var(--green)">+ ${fmt(p.imp)}</td><td>${ft}</td><td>${det}</td><td style="display:flex;gap:5px;"><button class="btn bs2" onclick="editPago('${p.id}')"><i class="ti ti-edit"></i></button><button class="bdel" onclick="delPago('${p.id}')"><i class="ti ti-trash"></i></button></td></tr>`;
+  tb.innerHTML=f.map(r=>{
+    const c=DATA.clientes.find(x=>x.id===r.cid);
+    if(r._tipo==='pago'){
+      const ft=r.forma==='Cheque'?'<span class="badge bch">Cheque</span>':r.forma==='Transferencia'?'<span class="badge bi">Transf.</span>':'<span class="badge bs">'+(r.forma||'Efectivo')+'</span>';
+      const det=chequeResumen(r)?`<span style="font-size:11px;color:#5b2d91;">${chequeResumen(r)}</span>`:r.nota?`<span style="font-size:12px;color:#888;">${r.nota}</span>`:'—';
+      return`<tr><td style="font-size:12px;color:#888;">${fD(r.fecha)}</td><td>${c?c.nombre:'—'}</td><td style="font-weight:600;color:var(--green)">+ ${fmt(r.imp)}</td><td>${ft}</td><td>${det}</td><td style="display:flex;gap:5px;"><button class="btn bs2" onclick="editPago('${r.id}')"><i class="ti ti-edit"></i></button><button class="bdel" onclick="delPago('${r.id}')"><i class="ti ti-trash"></i></button></td></tr>`;
+    } else {
+      return`<tr style="background:#fffdf5;"><td style="font-size:12px;color:#888;">${fD(r.fecha)}</td><td>${c?c.nombre:'—'}</td><td style="font-weight:600;color:var(--amb)">+ ${fmt(r.imp)}</td><td><span class="badge bw">Extra</span></td><td style="font-size:13px;color:#7a5200;">${r.desc||'—'}</td><td><button class="bdel" onclick="delExtraLista('${r.id}')"><i class="ti ti-trash"></i></button></td></tr>`;
+    }
   }).join('');
 }
+async function delExtraLista(eid){if(!confirm('¿Eliminar este extra?'))return;showLoad(true);await sb.from('extras').delete().eq('id',eid);await loadAll();showLoad(false);rPag();rDash();}
 
 // ---- DOCUMENTOS ----
 function rDocs(){
@@ -531,7 +560,7 @@ function buildDocData(ids,desde,hasta){
   let secciones=[],totalRango=0;
   for(const cli of clientes){
     const pend=mesesAdRango(cli,desde,hasta);
-    const extH=DATA.extras.filter(e=>e.cid===cli.id&&e.fecha>=desde+'-01'&&e.fecha<=hasta+'-31'&&!pend.find(mp=>e.fecha.startsWith(mp.mes)));
+    const extH=DATA.extras.filter(e=>String(e.cid)===String(cli.id)&&e.fecha>=desde+'-01'&&e.fecha<=hasta+'-31'&&!pend.find(mp=>mismoMes(e.fecha,mp.mes)));
     const subtotalRango=pend.reduce((a,m)=>a+m.total,0)+extH.reduce((a,e)=>a+e.imp,0);
     const ultPago=ultimoPago(cli);const saldoTotal=deuda(cli);
     totalRango+=subtotalRango;
@@ -682,8 +711,8 @@ function rDetMes(c){
   </div>`;
   let html=ef+`<div class="tw"><table><thead><tr><th>Período</th><th>Honorario base</th><th>Extras</th><th>Estado</th><th>Total</th></tr></thead><tbody>`;
   for(const mes of [...msTodos].reverse()){
-    const t=tarifa(c,mes),exs=DATA.extras.filter(e=>e.cid===c.id&&e.fecha.startsWith(mes)),tot=t+exs.reduce((a,e)=>a+e.imp,0),ad=adSet.has(mes);
-    const exH=exs.length?exs.map(ex=>`<div style="font-size:11px;color:var(--amb);display:flex;justify-content:space-between;gap:6px;align-items:center;"><span title="${ex.desc}">${ex.desc.length>30?ex.desc.substring(0,30)+'…':ex.desc} <span style="color:#aaa;font-size:10px;">(${fD(ex.fecha)})</span></span><span style="white-space:nowrap">${fmt(ex.imp)} <button class="bdel" style="padding:1px 5px;font-size:10px;" onclick="delExtra('${ex.id}','${c.id}')"><i class="ti ti-x"></i></button></span></div>`).join(''):'<span style="font-size:12px;color:#888;">—</span>';
+    const t=tarifa(c,mes),exs=DATA.extras.filter(e=>String(e.cid)===String(c.id)&&mismoMes(e.fecha,mes)),tot=t+exs.reduce((a,e)=>a+e.imp,0),ad=adSet.has(mes);
+    const exH=exs.length?`<div style="display:flex;flex-direction:column;gap:4px;">`+exs.map(ex=>`<div style="font-size:12px;color:var(--amb);display:flex;justify-content:space-between;gap:6px;align-items:center;background:#fffdf5;border-radius:4px;padding:3px 6px;"><span title="${ex.desc}"><strong>${fmt(ex.imp)}</strong> — ${ex.desc.length>35?ex.desc.substring(0,35)+'…':ex.desc} <span style="color:#aaa;font-size:10px;">(${fD(ex.fecha)})</span></span><button class="bdel" style="padding:1px 5px;font-size:10px;flex-shrink:0;" onclick="delExtra('${ex.id}','${c.id}')"><i class="ti ti-x"></i></button></div>`).join('')+`</div>`:'<span style="font-size:12px;color:#888;">—</span>';
     html+=`<tr><td style="font-weight:600">${mL(mes)}</td><td>${fmt(t)}</td><td>${exH}</td><td>${ad?'<span class="badge bd">Adeudado</span>':'<span class="badge bs">Pagado</span>'}</td><td style="font-weight:600;color:${ad?'var(--red)':'var(--green)'}">${fmt(tot)}</td></tr>`;
   }
   html+=`</tbody></table></div>`;document.getElementById('t-mes').innerHTML=html;
@@ -725,7 +754,7 @@ function abrirHistorial(cid){
     <div class="met"><div class="met-l">Saldo actual</div><div class="met-v ${sd>0?'r':'g'}" style="font-size:16px;">${sd<0?'A favor '+fmt(Math.abs(sd)):fmt(Math.max(0,sd))}</div></div>
   </div>`;
   let eventos=[];
-  for(const m of msTodos){const t=tarifa(c,m);const exs=DATA.extras.filter(e=>e.cid===cid&&e.fecha.startsWith(m));const tot=t+exs.reduce((a,e)=>a+e.imp,0);eventos.push({tipo:'mes',fecha:m+'-01',mes:m,tarifa:t,extras:exs,total:tot});}
+  for(const m of msTodos){const t=tarifa(c,m);const exs=DATA.extras.filter(e=>String(e.cid)===String(cid)&&mismoMes(e.fecha,m));const tot=t+exs.reduce((a,e)=>a+e.imp,0);eventos.push({tipo:'mes',fecha:m+'-01',mes:m,tarifa:t,extras:exs,total:tot});}
   for(const p of pagosC)eventos.push({tipo:'pago',fecha:p.fecha,pago:p});
   eventos.sort((a,b)=>b.fecha.localeCompare(a.fecha));
   html+=`<div class="sec">Cronología completa</div><div>`;
