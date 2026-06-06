@@ -280,11 +280,11 @@ input:focus,select:focus,textarea:focus{border-color:var(--c2);}
 <div class="mbg" id="m-ext"><div class="modal" style="width:min(420px,96vw)">
   <div class="mh"><h3>Extender período de facturación</h3><button class="btn bsm" onclick="cm('m-ext')"><i class="ti ti-x"></i></button></div>
   <div class="mb">
-    <div class="ali">Agregá nuevos meses a facturar a este cliente. Los meses ya pagados quedarán como pagados y los nuevos aparecerán como adeudados.</div>
-    <div class="field" style="margin-top:8px;">
-      <label>Facturar hasta</label>
+    <div class="ali">Una vez que el cliente paga todo, podés agregar nuevos meses a facturar. Los meses anteriores quedan como pagados y los nuevos aparecen como adeudados.</div>
+    <div class="field" style="margin-top:12px;">
+      <label>Facturar hasta el mes</label>
       <input type="month" id="ext-hasta">
-      <div class="hint">Todos los meses desde el inicio hasta esta fecha se generan automáticamente.</div>
+      <div class="hint">Elegí el último mes que querés incluir en la próxima liquidación.</div>
     </div>
     <div id="ext-preview" style="margin-top:10px;font-size:13px;color:#888;"></div>
   </div>
@@ -364,7 +364,7 @@ const hoy=new Date();
 let DATA={clientes:[],pagos:[],extras:[],grupos:[],envios:[]};
 
 // ---- MAPPERS ----
-const mCli=r=>({id:r.id,nombre:r.nombre,conceptos:r.conceptos||[],honorarioTotal:r.honorario_total,desde:r.desde,hasta:r.hasta,historialTarifas:r.historial_tarifas||[]});
+const mCli=r=>({id:r.id,nombre:r.nombre,conceptos:r.conceptos||[],honorarioTotal:r.honorario_total,desde:r.desde,hasta:r.hasta,historialTarifas:r.historial_tarifas||[],extrasPagados:r.extras_pagados||0});
 const mPag=r=>({id:r.id,cid:r.cliente_id,fecha:r.fecha,imp:r.importe,forma:r.forma,nota:r.nota,cheque:r.cheque});
 const mExt=r=>({id:r.id,cid:r.cliente_id,imp:r.importe,desc:r.descripcion});
 const mGrp=r=>({id:r.id,nombre:r.nombre,miembros:r.miembros||[]});
@@ -424,13 +424,10 @@ function mesesAd(cli){
 function extrasAd(cli){
   return DATA.extras.filter(e=>sid(e.cid,cli.id));
 }
-// Cuánto de los extras queda sin pagar después de cubrir todos los meses
+// Cuánto de los extras queda sin pagar — usa el valor guardado en DB
 function extrasRestante(cli){
-  const totalMonths=getMeses(cli).reduce((a,m)=>a+tarifa(cli,m),0);
-  const totalPagos=DATA.pagos.filter(p=>sid(p.cid,cli.id)).reduce((a,p)=>a+p.imp,0);
-  const sobrante=Math.max(0,totalPagos-totalMonths); // pago que sobra después de cubrir meses
   const totalExtras=DATA.extras.filter(e=>sid(e.cid,cli.id)).reduce((a,e)=>a+e.imp,0);
-  return Math.max(0,totalExtras-sobrante); // lo que queda de extras sin cubrir
+  return Math.max(0,totalExtras-(cli.extrasPagados||0));
 }
 
 function ultimoPago(cli){return[...DATA.pagos.filter(p=>sid(p.cid,cli.id))].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0]||null;}
@@ -875,13 +872,26 @@ function openDet(id){
   rDetRes(c);rDetMes(c);rDetPag(c);rDetConc(c);om('m-det');
 }
 function rDetRes(c){
-  const d=deuda(c),ma=mesesAd(c),ea=extrasAd(c),er=extrasRestante(c),tc=DATA.pagos.filter(p=>sid(p.cid,c.id)).reduce((a,p)=>a+p.imp,0),mt=getMeses(c).length;const up=ultimoPago(c);
-  document.getElementById('det-res').innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
-    <div class="met"><div class="met-l">Deuda total</div><div class="met-v ${d>0?'r':'g'}">${d<0?'A favor<br>'+fmt(Math.abs(d)):fmt(Math.max(0,d))}</div></div>
+  const d=deuda(c),ma=mesesAd(c),ea=extrasAd(c),er=extrasRestante(c),tc=DATA.pagos.filter(p=>sid(p.cid,c.id)).reduce((a,p)=>a+p.imp,0),mt=getMeses(c).length;
+  let resumen=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:${d<=0?'10px':'0'};">
+    <div class="met"><div class="met-l">Deuda total</div><div class="met-v ${d>0?'r':'g'}">${d<=0?'$ 0':''+fmt(Math.max(0,d))}</div></div>
     <div class="met"><div class="met-l">Meses adeudados</div><div class="met-v ${ma.length>0?'r':''}">${ma.length} de ${mt}</div></div>
-    <div class="met"><div class="met-l">Extras pendientes</div><div class="met-v ${er>0?'r':'g'}">${er>0?fmt(er):'Al día'}</div></div>
+    <div class="met"><div class="met-l">Extras pendientes</div><div class="met-v ${er>0?'r':'g'}">${er>0?fmt(er):'$ 0'}</div></div>
     <div class="met"><div class="met-l">Total cobrado</div><div class="met-v g">${fmt(tc)}</div></div>
   </div>`;
+  // Banner especial cuando todo está pagado
+  if(d<=0&&er===0){
+    resumen+=`<div style="background:#eaf5ef;border:1.5px solid #1a6b3a;border-radius:10px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#1a6b3a;"><i class="ti ti-circle-check"></i> Cliente al día — todo pagado</div>
+        <div style="font-size:12px;color:#2a8a4a;margin-top:3px;">Para cobrar nuevos meses, extendé el período de facturación</div>
+      </div>
+      <button class="btn bp" style="background:#1a6b3a;border-color:#1a6b3a;white-space:nowrap;" onclick="cm('m-det');openExtender('${c.id}')">
+        <i class="ti ti-calendar-plus"></i> Agregar próximos meses
+      </button>
+    </div>`;
+  }
+  document.getElementById('det-res').innerHTML=resumen;
 }
 function rDetMes(c){
   const msTodos=getMeses(c),ma=mesesAd(c),adSet=new Set(ma.map(m=>m.mes));
@@ -952,28 +962,91 @@ function rDetConc(c){
 // ---- HISTORIAL ----
 function abrirHistorial(cid){
   const c=DATA.clientes.find(x=>x.id===cid);if(!c)return;
-  document.getElementById('hist-t').textContent='Historial — '+c.nombre;
-  const msTodos=getMeses(c),pagosC=[...DATA.pagos.filter(p=>sid(p.cid,cid))].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  document.getElementById('hist-t').textContent='Ficha — '+c.nombre;
+  const msTodos=getMeses(c);
+  const pagosC=[...DATA.pagos.filter(p=>sid(p.cid,cid))].sort((a,b)=>a.fecha.localeCompare(b.fecha));
   const extrasC=DATA.extras.filter(e=>sid(e.cid,cid));
-  const tc=pagosC.reduce((a,p)=>a+p.imp,0),tb=msTodos.reduce((a,m)=>a+tarifa(c,m),0),te=extrasC.reduce((a,e)=>a+e.imp,0),sd=deuda(c);
-  let html=`<div class="hist-header"><div style="font-size:17px;font-weight:700;">${c.nombre}</div><div style="font-size:12px;opacity:.7;margin-top:3px;">${mL(c.desde)} → ${c.hasta?mL(c.hasta):'hoy'} · ${fmt(c.honorarioTotal)}/mes</div></div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:1.5rem;">
+  const tc=pagosC.reduce((a,p)=>a+p.imp,0);
+  const tb=msTodos.reduce((a,m)=>a+tarifa(c,m),0);
+  const te=extrasC.reduce((a,e)=>a+e.imp,0);
+  const sd=deuda(c);
+
+  let html=`<div class="hist-header">
+    <div><div style="font-size:17px;font-weight:700;">${c.nombre}</div>
+    <div style="font-size:12px;opacity:.7;margin-top:3px;">${mL(c.desde)} → ${c.hasta?mL(c.hasta):'hoy'} · ${fmt(c.honorarioTotal)}/mes</div></div>
+    <div style="text-align:right;font-size:13px;opacity:.9;">${msTodos.length} meses · ${pagosC.length} pagos</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1.5rem;">
     <div class="met"><div class="met-l">Total facturado</div><div class="met-v" style="font-size:16px;">${fmt(tb+te)}</div></div>
     <div class="met"><div class="met-l">Total cobrado</div><div class="met-v g" style="font-size:16px;">${fmt(tc)}</div></div>
-    <div class="met"><div class="met-l">Saldo actual</div><div class="met-v ${sd>0?'r':'g'}" style="font-size:16px;">${sd<0?'A favor '+fmt(Math.abs(sd)):fmt(Math.max(0,sd))}</div></div>
+    <div class="met"><div class="met-l">Saldo actual</div><div class="met-v ${sd>0?'r':'g'}" style="font-size:16px;">${sd<=0?'Al día':fmt(sd)}</div></div>
   </div>`;
+
+  // Ledger / Libro mayor
+  html+=`<div class="sec">Libro de cuenta corriente</div>
+  <div class="tw"><table>
+    <thead><tr>
+      <th>Fecha / Período</th>
+      <th>Concepto</th>
+      <th style="text-align:right;color:var(--red);">Debe</th>
+      <th style="text-align:right;color:var(--green);">Haber</th>
+      <th style="text-align:right;">Saldo</th>
+    </tr></thead>
+    <tbody>`;
+
+  // Mezclar todos los eventos cronológicamente
   let eventos=[];
-  for(const m of msTodos){const t=tarifa(c,m);eventos.push({tipo:'mes',fecha:m+'-01',mes:m,tarifa:t});}
-  for(const p of pagosC)eventos.push({tipo:'pago',fecha:p.fecha,pago:p});
-  for(const e of extrasC)eventos.push({tipo:'extra',fecha:'0000-00-00',extra:e});
-  eventos.sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  html+=`<div class="sec">Cronología completa</div><div>`;
-  for(const ev of eventos){
-    if(ev.tipo==='mes'){html+=`<div class="tl-item"><div class="tl-date">${mLcorto(ev.mes)}</div><div class="tl-body"><div class="tl-card"><div style="display:flex;justify-content:space-between;"><span style="font-weight:600">${mL(ev.mes)}</span><span style="font-weight:600">${fmt(ev.tarifa)}</span></div></div></div></div>`;}
-    else if(ev.tipo==='pago'){const p=ev.pago;const cr=chequeRes(p);html+=`<div class="tl-item tl-pago"><div class="tl-date" style="color:var(--green);">${fD(p.fecha).split('/').slice(0,2).join('/')}<br><strong>${fD(p.fecha).split('/')[2]}</strong></div><div class="tl-body"><div class="tl-card" style="border-left:3px solid var(--green);background:var(--gbg);"><div style="display:flex;justify-content:space-between;"><span style="font-weight:600;color:var(--green)">Pago — ${p.forma||'Efectivo'}</span><span style="font-weight:700;color:var(--green)">+ ${fmt(p.imp)}</span></div>${p.nota?`<div style="font-size:12px;color:#888;">${p.nota}</div>`:''}${cr?`<div style="font-size:11px;color:#5b2d91;">${cr}</div>`:''}</div></div></div>`;}
-    else{const e=ev.extra;html+=`<div class="tl-item tl-extra"><div class="tl-date" style="color:var(--amb);">Extra</div><div class="tl-body"><div class="tl-card" style="border-left:3px solid var(--amb);background:#fffbf0;"><div style="display:flex;justify-content:space-between;"><span style="font-weight:600;color:var(--amb);font-style:italic;">${e.desc}</span><span style="font-weight:700;color:var(--amb)">${fmt(e.imp)}</span></div></div></div></div>`;}
+  for(const m of msTodos){
+    const t=tarifa(c,m);
+    eventos.push({fecha:m+'-01',tipo:'mes',label:mL(m),debe:t,haber:0});
   }
-  html+=`</div>`;document.getElementById('hist-body').innerHTML=html;om('m-hist');
+  for(const ex of extrasC){
+    eventos.push({fecha:'2000-01-01',tipo:'extra',label:ex.desc,debe:ex.imp,haber:0});
+  }
+  for(const p of pagosC){
+    eventos.push({fecha:p.fecha,tipo:'pago',label:(p.forma||'Efectivo')+(p.nota?' · '+p.nota:''),debe:0,haber:p.imp});
+  }
+  // Ordenar: extras van al final de su grupo, pagos por fecha
+  eventos.sort((a,b)=>{
+    if(a.tipo==='extra'&&b.tipo!=='extra')return 1;
+    if(b.tipo==='extra'&&a.tipo!=='extra')return -1;
+    return a.fecha.localeCompare(b.fecha);
+  });
+
+  let saldo=0;
+  for(const ev of eventos){
+    saldo+=ev.debe-ev.haber;
+    const colorSaldo=saldo>0?'color:var(--red);font-weight:700;':saldo===0?'color:var(--green);font-weight:700;':'color:var(--green);font-weight:700;';
+    const bgRow=ev.tipo==='pago'?'background:#f0faf4;':ev.tipo==='extra'?'background:#fffbf0;':'';
+    const iconoPre=ev.tipo==='pago'?'<span style="color:var(--green);">↓</span> ':ev.tipo==='extra'?'<span style="color:var(--amb);">★</span> ':'';
+    html+=`<tr style="${bgRow}">
+      <td style="font-size:12px;color:#888;">${ev.tipo==='mes'?fUltDia(ev.fecha.substring(0,7)):ev.tipo==='pago'?fD(ev.fecha):'—'}</td>
+      <td style="font-size:13px;">${iconoPre}${ev.label}</td>
+      <td style="text-align:right;font-size:13px;color:var(--red);">${ev.debe>0?fmt(ev.debe):'—'}</td>
+      <td style="text-align:right;font-size:13px;color:var(--green);">${ev.haber>0?fmt(ev.haber):'—'}</td>
+      <td style="text-align:right;font-size:13px;${colorSaldo}">${fmt(Math.abs(saldo))}${saldo<0?' (a favor)':''}</td>
+    </tr>`;
+  }
+  html+=`</tbody>
+    <tfoot><tr style="background:#f0f4fa;">
+      <td colspan="2" style="font-weight:700;font-size:13px;">TOTALES</td>
+      <td style="text-align:right;font-weight:700;color:var(--red);">${fmt(tb+te)}</td>
+      <td style="text-align:right;font-weight:700;color:var(--green);">${fmt(tc)}</td>
+      <td style="text-align:right;font-weight:700;${sd>0?'color:var(--red);':'color:var(--green);'}">${fmt(Math.abs(sd))}${sd<=0?' ✓':''}</td>
+    </tr></tfoot>
+  </table></div>`;
+
+  // Extras listados aparte
+  if(extrasC.length){
+    html+=`<div class="sec" style="margin-top:1.5rem">Trabajos adicionales registrados</div>
+    <div class="tw"><table><thead><tr><th>Descripción</th><th style="text-align:right;">Importe</th></tr></thead><tbody>`;
+    for(const ex of extrasC)
+      html+=`<tr><td style="font-size:13px;font-style:italic;">${ex.desc}</td><td style="text-align:right;font-weight:700;color:var(--amb);">${fmt(ex.imp)}</td></tr>`;
+    html+=`<tr style="background:#f8f9fb;"><td style="font-weight:700;">Total extras</td><td style="text-align:right;font-weight:700;">${fmt(te)}</td></tr>`;
+    html+=`</tbody></table></div>`;
+  }
+
+  document.getElementById('hist-body').innerHTML=html;om('m-hist');
 }
 
 // ---- EXTRAS ----
@@ -1025,7 +1098,19 @@ async function savePago(){
   showLoad(true);
   if(ePid){await sb.from('pagos').update({cliente_id:cid,fecha,importe:imp,nota,forma,cheque}).eq('id',ePid);}
   else await sb.from('pagos').insert({cliente_id:cid,fecha,importe:imp,nota,forma,cheque});
-  await loadAll();showLoad(false);cm('m-pago');rPag();rDash();
+  // Recalcular extras_pagados: cuánto del pago cubre extras después de cubrir meses
+  await loadAll();
+  const cliData=DATA.clientes.find(x=>x.id===cid);
+  if(cliData){
+    const totalMonths=getMeses(cliData).reduce((a,m)=>a+tarifa(cliData,m),0);
+    const totalPagosNow=DATA.pagos.filter(p=>sid(p.cid,cid)).reduce((a,p)=>a+p.imp,0);
+    const sobrante=Math.max(0,totalPagosNow-totalMonths);
+    const totalExtras=DATA.extras.filter(e=>sid(e.cid,cid)).reduce((a,e)=>a+e.imp,0);
+    const extrasPagados=Math.min(sobrante,totalExtras);
+    await sb.from('clientes').update({extras_pagados:extrasPagados}).eq('id',cid);
+    await loadAll();
+  }
+  showLoad(false);cm('m-pago');rPag();rDash();
   if(dCid){const c=DATA.clientes.find(x=>x.id===dCid);if(c){rDetRes(c);rDetMes(c);rDetPag(c);}}
 }
 
