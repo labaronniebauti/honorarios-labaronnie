@@ -235,6 +235,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--c2);}
     <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:10px;">Conceptos del honorario mensual</div>
     <div id="conc-cont"></div>
     <button class="btn bsm" onclick="addConc()"><i class="ti ti-plus"></i> Agregar concepto</button>
+    <!-- Campo "desde qué mes" solo visible al editar -->
+    <div id="desde-mes-wrap" style="display:none;margin-top:12px;padding:12px;background:#e8f0fa;border-radius:8px;">
+      <label style="color:var(--c1);">¿Desde qué mes aplica este nuevo honorario?</label>
+      <input type="month" id="tarifa-desde" style="margin-top:6px;">
+      <div class="hint">Los meses anteriores a esta fecha conservan el valor anterior.</div>
+    </div>
     <div style="margin-top:1rem;padding-top:1rem;border-top:var(--brd);display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:13px;color:#888;">Total mensual:</span>
       <span style="font-size:18px;font-weight:700;color:var(--c1);" id="ct">$ 0</span>
@@ -587,27 +593,23 @@ function buildDocData(ids,desde,hasta){
   let secciones=[],totalRango=0;
   for(const cli of clientes){
     const ms=getMeses(cli).filter(m=>m>=desde&&m<=hasta);
-    const extrasTotal=DATA.extras.filter(e=>sid(e.cid,cli.id)).reduce((a,e)=>a+e.imp,0);
+    // Para el PDF: aplicar pagos a meses primero, luego a extras
     let paid=DATA.pagos.filter(p=>sid(p.cid,cli.id)).reduce((a,p)=>a+p.imp,0);
     for(const m of getMeses(cli).filter(m=>m<desde)){const t=tarifa(cli,m);if(paid>=t)paid-=t;else paid=0;}
-    let pend=[];let owed=false;
-    for(let i=0;i<ms.length;i++){
-      const m=ms[i],t=tarifa(cli,m),isLast=(i===ms.length-1);
-      const charge=isLast?t+extrasTotal:t;
-      if(!owed){
-        if(paid>=charge){paid-=charge;continue;}
-        owed=true;
-        pend.push({mes:m,tarifa:t,restante:charge-paid,parcial:paid>0,hasExtras:isLast&&extrasTotal>0});
-        paid=0;
-      } else {
-        pend.push({mes:m,tarifa:t,restante:isLast?t+extrasTotal:t,parcial:false,hasExtras:isLast&&extrasTotal>0});
-      }
+    let pend=[];
+    for(const m of ms){
+      const t=tarifa(cli,m);
+      if(paid>=t){paid-=t;}
+      else{pend.push({mes:m,tarifa:t,restante:t-paid,parcial:paid>0&&paid<t});paid=0;}
     }
+    // Extras: lo que queda del pago después de cubrir meses
     const extras=DATA.extras.filter(e=>sid(e.cid,cli.id));
-    const subtotal=pend.reduce((a,m)=>a+m.restante,0);
+    const totalExtras=extras.reduce((a,e)=>a+e.imp,0);
+    const extrasOwed=Math.max(0,totalExtras-paid);
+    const subtotal=pend.reduce((a,m)=>a+m.restante,0)+extrasOwed;
     const ultPago=ultimoPago(cli);
     totalRango+=subtotal;
-    secciones.push({cli,pend,extras,er:0,subtotal,ultPago});
+    secciones.push({cli,pend,extras,extrasOwed,subtotal,ultPago});
   }
   return{secciones,totalRango};
 }
@@ -656,13 +658,13 @@ function buildDocHTML(data,titulo,desde,hasta){
     }
 
     // EXTRAS
-    if(sec.extras.length&&sec.er>0){
+    if(sec.extras.length&&sec.extrasOwed>0){
       html+=`<div style="padding:1.25rem 1.75rem;border-bottom:1px solid #eee;background:#fffbf0;">
         <div style="${fs}font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#7a4700;margin-bottom:10px;">Trabajos adicionales</div>`;
       for(const ex of sec.extras)
         html+=`<div style="${fs}display:flex;justify-content:space-between;font-size:15px;padding:6px 0;border-bottom:1px solid #f0e0a0;color:#555;"><span style="font-style:italic;">${ex.desc}</span><span style="font-weight:700;color:#7a4700;">${fmt(ex.imp)}</span></div>`;
-      if(sec.er<sec.extras.reduce((a,e)=>a+e.imp,0)){
-        html+=`<div style="${fs}display:flex;justify-content:space-between;font-size:13px;padding:5px 0;color:#7a4700;border-top:1px dashed #e8c860;margin-top:4px;padding-top:6px;">Saldo adeudado en extras<span style="font-weight:700;">${fmt(sec.er)}</span></div>`;
+      if(sec.extrasOwed<sec.extras.reduce((a,e)=>a+e.imp,0)){
+        html+=`<div style="${fs}display:flex;justify-content:space-between;font-size:13px;padding:5px 0;color:#7a4700;border-top:1px dashed #e8c860;margin-top:4px;padding-top:6px;">Saldo adeudado en extras<span style="font-weight:700;">${fmt(sec.extrasOwed)}</span></div>`;
       }
       html+=`</div>`;
     }
@@ -757,7 +759,7 @@ async function genPDF(){
     }
 
     // Extras
-    if(sec.extras.length&&sec.er>0){
+    if(sec.extras.length&&sec.extrasOwed>0){
       chk(8);linea(yy);yy+=5;doc.setTextColor(122,82,0);doc.setFontSize(7);doc.setFont('times','bold');doc.text('TRABAJOS ADICIONALES',M,yy);yy+=5;
       for(const ex of sec.extras){
         chk(8);
@@ -767,10 +769,10 @@ async function genPDF(){
         doc.text(lines,M+2,yy+4);doc.setFont('times','bold');doc.text(fmt(ex.imp),W-M,yy+4,{align:'right'});
         yy+=lines.length*7;
       }
-      if(sec.er<sec.extras.reduce((a,e)=>a+e.imp,0)){
+      if(sec.extrasOwed<sec.extras.reduce((a,e)=>a+e.imp,0)){
         chk();doc.setFillColor(251,218,218);doc.rect(M,yy,cw,6,'F');
         doc.setTextColor(163,45,45);doc.setFontSize(9);doc.setFont('times','bold');
-        doc.text('SALDO ADEUDADO EN EXTRAS',M+2,yy+4);doc.text(fmt(sec.er),W-M,yy+4,{align:'right'});yy+=8;
+        doc.text('SALDO ADEUDADO EN EXTRAS',M+2,yy+4);doc.text(fmt(sec.extrasOwed),W-M,yy+4,{align:'right'});yy+=8;
       }
     }
 
@@ -815,8 +817,8 @@ async function genPDF(){
 
 // ---- MODAL CLIENTE ----
 let eCid=null,cTmp=[];
-function openCli(){eCid=null;cTmp=[{n:'IVA',i:0},{n:'Ingresos Brutos',i:0}];document.getElementById('cn').value='';document.getElementById('cd').value=ymFn(hoy);document.getElementById('ch').value='';document.getElementById('m-cli-t').textContent='Nuevo cliente';rConc();om('m-cli');}
-function editCli(id){const c=DATA.clientes.find(x=>x.id===id);if(!c)return;eCid=id;cTmp=c.conceptos.map(x=>({n:x.nombre,i:x.importe}));document.getElementById('cn').value=c.nombre;document.getElementById('cd').value=c.desde;document.getElementById('ch').value=c.hasta||'';document.getElementById('m-cli-t').textContent='Editar — '+c.nombre;rConc();om('m-cli');}
+function openCli(){eCid=null;cTmp=[{n:'IVA',i:0},{n:'Ingresos Brutos',i:0}];document.getElementById('cn').value='';document.getElementById('cd').value=ymFn(hoy);document.getElementById('ch').value='';document.getElementById('m-cli-t').textContent='Nuevo cliente';document.getElementById('desde-mes-wrap').style.display='none';rConc();om('m-cli');}
+function editCli(id){const c=DATA.clientes.find(x=>x.id===id);if(!c)return;eCid=id;cTmp=c.conceptos.map(x=>({n:x.nombre,i:x.importe}));document.getElementById('cn').value=c.nombre;document.getElementById('cd').value=c.desde;document.getElementById('ch').value=c.hasta||'';document.getElementById('m-cli-t').textContent='Editar — '+c.nombre;document.getElementById('desde-mes-wrap').style.display='block';document.getElementById('tarifa-desde').value=ymFn(hoy);rConc();om('m-cli');}
 function editDesde(){const id=dCid;cm('m-det');editCli(id);}
 function addConc(){cTmp.push({n:'',i:0});rConc();}
 function rConc(){document.getElementById('conc-cont').innerHTML=cTmp.map((x,i)=>`<div class="crow"><input type="text" value="${x.n}" placeholder="Concepto" oninput="cTmp[${i}].n=this.value"><input type="number" value="${x.i||''}" placeholder="$ 0" oninput="cTmp[${i}].i=parseFloat(this.value)||0;rT()"><button class="bdel" onclick="cTmp.splice(${i},1);rConc()"><i class="ti ti-trash"></i></button></div>`).join('');rT();}
@@ -829,7 +831,13 @@ async function saveCli(){
   if(eCid){
     const c=DATA.clientes.find(x=>x.id===eCid);
     let ht2=c.historialTarifas||[];
-    if(c.honorarioTotal!==ht){const ma=ymFn(hoy);if(!ht2.find(h=>h.desde===ma))ht2=[...ht2,{desde:ma,total:ht,conceptos:[...conceptos]}];}
+    if(c.honorarioTotal!==ht){
+      // Usar el mes que eligió el usuario, no el mes actual
+      const desdeNueva=document.getElementById('tarifa-desde').value||ymFn(hoy);
+      // Eliminar cualquier entrada existente para ese mismo mes y agregar la nueva
+      ht2=ht2.filter(h=>h.desde!==desdeNueva);
+      ht2.push({desde:desdeNueva,total:ht,conceptos:[...conceptos]});
+    }
     await sb.from('clientes').update({nombre,conceptos,honorario_total:ht,desde,hasta,historial_tarifas:ht2}).eq('id',eCid);
   }else{
     await sb.from('clientes').insert({nombre,conceptos,honorario_total:ht,desde,hasta,historial_tarifas:[{desde,total:ht,conceptos:[...conceptos]}]});
@@ -861,6 +869,13 @@ async function saveExtender(){
   const c=DATA.clientes.find(x=>x.id===extCid);if(!c)return;
   if(hasta<=c.desde){alert('El mes elegido debe ser posterior al inicio.');return;}
   showLoad(true);
+  // Si el cliente estaba al día antes de extender, borrar los extras (ya fueron pagados)
+  if(deuda(c)<=0){
+    const extrasCliente=DATA.extras.filter(e=>sid(e.cid,extCid));
+    for(const ex of extrasCliente){
+      await sb.from('extras').delete().eq('id',ex.id);
+    }
+  }
   await sb.from('clientes').update({hasta}).eq('id',extCid);
   await loadAll();showLoad(false);cm('m-ext');
   const cu=DATA.clientes.find(x=>x.id===extCid);if(cu){openDet(extCid);}
